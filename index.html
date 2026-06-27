@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">GlowUp Rentals — Marquee Letters, Photo Booths & Flower Walls</title>
+  <meta name="description" content="Luxury event decor rentals including marquee letters, photo booths, flower walls, and backdrops. Serving DC, Maryland, Virginia, Philadelphia & NYC.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== NAV ===== -->
+<nav id="main-nav">
+  <a class="nav-logo" href="#">
+    <div class="logo-icon" id="logo-icon">G</div>
+    <span id="nav-brand">GlowUp Rentals</span>
+  </a>
+  <div class="nav-links">
+    <a href="#services">Services</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#packages">Packages</a>
+    <a href="#reviews">Reviews</a>
+    <a href="#faq">FAQ</a>
+    <a href="#contact" class="nav-cta">Book Now</a>
+  </div>
+  <a class="nav-phone" id="nav-phone" href="tel:+15717861516">571-786-1516</a>
+  <button class="hamburger" id="hamburger" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobile-menu">
+  <a href="#services" onclick="closeMobile()">Services</a>
+  <a href="#pricing" onclick="closeMobile()">Pricing</a>
+  <a href="#packages" onclick="closeMobile()">Packages</a>
+  <a href="#reviews" onclick="closeMobile()">Reviews</a>
+  <a href="#faq" onclick="closeMobile()">FAQ</a>
+  <a href="#contact" onclick="closeMobile()">Book Now</a>
+  <a class="mobile-phone" id="mobile-phone" href="tel:+15717861516">✆ 571-786-1516</a>
+</div>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="home">
+  <div class="hero-bg-circle"></div>
+  <div class="hero-bg-circle"></div>
+  <div class="hero-content">
+    <div class="hero-badge">⭐ Insured · Delivery & Setup Included</div>
+    <h1 id="hero-title">Luxury Event Rentals<br><span>That Make Memories</span></h1>
+    <p class="hero-sub" id="hero-sub">Marquee letters, photo booths, flower walls, and balloon décor for weddings, birthdays, proposals, and corporate events across the DMV area.</p>
+    <div class="hero-btns">
+      <a href="#contact" class="btn btn-primary">Book Your Event</a>
+      <a href="#packages" class="btn btn-outline">See Packages</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-num">500+</div>
+        <div class="stat-label">Events Served</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">5★</div>
+        <div class="stat-label">Google Rating</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">100mi</div>
+        <div class="stat-label">Delivery Radius</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">5</div>
+        <div class="stat-label">Major Cities</div>
+      </div>
+    </div>
+    <div class="hero-images" id="hero-images">
+      <div class="hero-img-card">
+        <img src="https://static.wixstatic.com/media/3974b0_e6e6433d6de94a45af45c71395900c33~mv2.jpg/v1/fill/w_455,h_341,al_c,q_80/0EB1DE65-95EA-490E-9995-F6AF483F0C52_JPG.jpg" alt="Event decor">
+      </div>
+      <div class="hero-img-card">
+        <img src="https://static.wixstatic.com/media/3974b0_aff6fe501cfe4ca1a5552ca2e347c26c~mv2.jpg/v1/crop/x_8,y_0,w_1318,h_1600/fill/w_281,h_341,al_c,q_80/IMG_7675_edited.jpg" alt="Marquee letters">
+      </div>
+      <div class="hero-img-card">
+        <img src="https://static.wixstatic.com/media/3974b0_16a8513f877b462ea85f9d5e6ae76d93~mv2.jpg/v1/fill/w_410,h_410,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_JPG.jpg" alt="Photo booth">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SERVICES ===== -->
+<section class="services-section" id="services">
+  <div class="section-head">
+    <div class="section-label">What We Offer</div>
+    <h2 class="section-title">One Stop Shop for Event Decor</h2>
+    <p class="section-sub">Full-service rentals with delivery, professional setup, and breakdown included — so you can focus on enjoying your event.</p>
+  </div>
+  <div class="services-grid" id="services-grid"></div>
+</section>
+
+<!-- ===== PRICING — INDIVIDUAL ===== -->
+<section class="pricing-section" id="pricing">
+  <div class="section-head">
+    <div class="section-label">Transparent Pricing</div>
+    <h2 class="section-title">Individual Item Rates</h2>
+    <p class="section-sub">Simple, clear pricing. Need multiple items? Check our packages below for the best value.</p>
+  </div>
+  <div class="individual-grid" id="individual-grid"></div>
+</section>
+
+<!-- ===== PACKAGES ===== -->
+<section class="packages-section" id="packages">
+  <div class="section-head">
+    <div class="section-label">Bundle & Save</div>
+    <h2 class="section-title">Event Packages</h2>
+    <p class="section-sub">Curated packages for every occasion — all include delivery, setup, and breakdown.</p>
+  </div>
+  <div class="packages-grid" id="packages-grid"></div>
+  <div class="packages-cta">
+    <a href="#contact" class="btn btn-primary">Get a Custom Quote</a>
+  </div>
+</section>
+
+<!-- ===== REVIEWS ===== -->
+<section class="reviews-section" id="reviews">
+  <div class="section-head">
+    <div class="section-label" style="color: var(--rose-light)">What Clients Say</div>
+    <h2 class="section-title" style="color: white">Trusted by Hundreds of Families</h2>
+    <p class="section-sub" style="color: rgba(255,255,255,0.6); margin: 0 auto 3rem;">Real stories from real clients across the DMV, Philadelphia, and NYC.</p>
+  </div>
+  <div class="reviews-grid" id="reviews-grid"></div>
+</section>
+
+<!-- ===== AS SEEN ON ===== -->
+<div class="seen-on">
+  <div class="section-label">As Seen On</div>
+  <div class="logos-row">
+    <div class="logo-item"><img src="https://static.wixstatic.com/media/3974b0_8bb560f60e93401cb9a05adedf861e27~mv2.jpeg/v1/fill/w_220,h_176,al_c,q_80/image0%20(1).jpeg" alt="The Knot"></div>
+    <div class="logo-item"><img src="https://static.wixstatic.com/media/3974b0_df2346ee2d634cdaad73258fadf99358~mv2.jpg/v1/fill/w_199,h_200,al_c,q_80/wedding%20wire.jpg" alt="WeddingWire"></div>
+    <div class="logo-item"><img src="https://static.wixstatic.com/media/3974b0_3d419b1c7fc646c6b17e9b71fe2cb30e~mv2.png/v1/fill/w_200,h_200,al_c,lg_1,q_85/download.png" alt="Vogue"></div>
+    <div class="logo-item"><img src="https://static.wixstatic.com/media/3974b0_f6b85f53c49d4ba9bafa327c6d4c8b27~mv2.jpeg/v1/fill/w_220,h_200,al_c,q_80/NOVA.jpeg" alt="NOVA"></div>
+  </div>
+</div>
+
+<!-- ===== FAQ ===== -->
+<section class="faq-section" id="faq">
+  <div class="section-head">
+    <div class="section-label">Got Questions?</div>
+    <h2 class="section-title">Frequently Asked Questions</h2>
+    <p class="section-sub" style="margin: 0 auto 3rem;">Everything you need to know before booking.</p>
+  </div>
+  <div class="faq-grid" id="faq-grid"></div>
+</section>
+
+<!-- ===== CONTACT ===== -->
+<section class="contact-section" id="contact">
+  <div class="section-head">
+    <div class="section-label">Get In Touch</div>
+    <h2 class="section-title">Book Your Event</h2>
+    <p class="section-sub" style="margin: 0 auto 2.5rem;">Fill out the form and we'll get back to you within 24 hours. Or call us directly!</p>
+  </div>
+  <div class="contact-wrap">
+    <div id="form-container">
+      <div class="contact-grid" id="contact-form">
+        <div class="form-group">
+          <label>First Name *</label>
+          <input type="text" placeholder="Jane" required>
+        </div>
+        <div class="form-group">
+          <label>Last Name *</label>
+          <input type="text" placeholder="Smith" required>
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" placeholder="jane@email.com" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" placeholder="(555) 000-0000">
+        </div>
+        <div class="form-group full">
+          <label>Event Type</label>
+          <select>
+            <option value="">Select event type...</option>
+            <option>Wedding</option>
+            <option>Birthday Party</option>
+            <option>Proposal</option>
+            <option>Corporate Event</option>
+            <option>Baby Shower</option>
+            <option>Quinceañera</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Event Date</label>
+          <input type="date">
+        </div>
+        <div class="form-group">
+          <label>City / Venue</label>
+          <input type="text" placeholder="Washington DC">
+        </div>
+        <div class="form-group full">
+          <label>Services Interested In</label>
+          <select>
+            <option value="">Select service(s)...</option>
+            <option>Marquee Letters / Numbers</option>
+            <option>Photo Booth</option>
+            <option>Backdrop / Flower Wall</option>
+            <option>Balloon Decorations</option>
+            <option>Full Package</option>
+            <option>Multiple / Custom</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Message / Additional Details</label>
+          <textarea placeholder="Tell us about your event, specific items you need, or any questions..."></textarea>
+        </div>
+        <div class="form-group full">
+          <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="submitForm(event)">
+            Send Inquiry ✦
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="form-success" id="form-success">
+      ✦ Thank you! We'll be in touch within 24 hours.
+    </div>
+    <div style="text-align:center; margin-top: 1.5rem; font-size: 14px; color: var(--gray);">
+      Or call / text us directly: <a id="form-phone" href="tel:+15717861516" style="color:var(--rose); font-weight:600;">571-786-1516</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="nav-logo" href="#">
+        <div class="logo-icon" id="footer-logo-icon">G</div>
+        <span id="footer-brand">GlowUp Rentals</span>
+      </a>
+      <p style="margin-top: 12px;">Reliable, insured event decor rentals with delivery, setup, and breakdown included. Making your special moments unforgettable.</p>
+      <div class="green-pledge">
+        <span class="green-icon">🌱</span>
+        Every order plants a tree through the Nature Conservancy's Plant a Billion Trees project.
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <a href="#services">Marquee Letters</a>
+      <a href="#services">Photo Booth</a>
+      <a href="#services">Flower Walls</a>
+      <a href="#services">Balloons</a>
+      <a href="#packages">Packages</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a class="footer-phone" id="footer-phone" href="tel:+15717861516">571-786-1516</a>
+      <a href="#contact">Send Inquiry</a>
+      <a href="#faq">FAQ</a>
+      <a id="footer-insta" href="https://www.instagram.com/dmv_flowerwalls/" target="_blank">Instagram</a>
+      <p style="font-size:13px; color:rgba(255,255,255,0.4); margin-top: 10px;" id="footer-areas">Washington DC · Maryland · Virginia · Philadelphia · NYC</p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span id="footer-copy">© 2024 GlowUp Rentals LLC. All rights reserved.</span>
+    <span>Alexandria, VA · Serving the DMV & beyond</span>
+  </div>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
