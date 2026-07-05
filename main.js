@@ -62,9 +62,11 @@ function renderServices() {
         <img src="${s.image}" alt="${s.title}" loading="lazy">
       </div>
       <div class="service-body">
-        <div class="service-icon">${s.icon}</div>
+        <div class="service-price-tag">${s.price || ''}</div>
         <h3>${s.title}</h3>
+        ${s.priceDetail ? `<div class="service-price-detail">${s.priceDetail}</div>` : ''}
         <p>${s.description}</p>
+        <a href="${s.link || '#contact'}" class="btn btn-outline" style="margin-top:12px;padding:10px 20px;font-size:13px">View Details</a>
       </div>
     </div>
   `).join('');
