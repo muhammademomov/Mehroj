@@ -1,1 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Booth Rental | GlowUp Rentals</title>
+  <meta name="description" content="Rent our self-running digital photo booth for your event. Guests can instantly share photos. Serving DC, Maryland, Virginia, Philadelphia & NYC.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .page-hero{padding:calc(var(--nav-h) + 3rem) 2rem 3rem;text-align:center;background:linear-gradient(160deg,var(--rose-pale),var(--blush) 60%,white)}
+    .page-hero h1{margin-bottom:1rem}
+    .page-hero p{font-size:1.1rem;max-width:600px;margin:0 auto 2rem}
+    .pricing-banner{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:2rem}
+    .price-pill{background:white;border:2px solid var(--rose-light);border-radius:50px;padding:10px 24px;font-size:15px;font-weight:600;color:var(--rose)}
+    .page-content{max-width:1100px;margin:0 auto;padding:3rem 2rem}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:start;margin-bottom:4rem}
+    .two-col img{width:100%;border-radius:var(--radius-md);box-shadow:var(--shadow-lg)}
+    .feature-list{list-style:none;display:flex;flex-direction:column;gap:12px;margin:1.5rem 0}
+    .feature-list li{display:flex;align-items:flex-start;gap:10px;font-size:15px;color:var(--gray)}
+    .feature-list li::before{content:"✓";color:var(--rose);font-weight:700;flex-shrink:0;margin-top:1px}
+    .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:2rem}
+    .gallery-grid img{width:100%;height:220px;object-fit:cover;border-radius:var(--radius-md);transition:transform 0.3s;cursor:pointer}
+    .gallery-grid img:hover{transform:scale(1.03)}
+    .addon-box{background:var(--rose-pale);border:1.5px solid var(--rose-light);border-radius:var(--radius-md);padding:1.5rem;margin-top:2rem}
+    .addon-box h3{color:var(--rose);margin-bottom:8px}
+    @media(max-width:768px){.two-col{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<nav id="main-nav">
+  <a class="nav-logo" href="../index.html">
+    <div class="logo-icon">G</div>
+    <span>GlowUp Rentals</span>
+  </a>
+  <div class="nav-links">
+    <a href="../index.html">Home</a>
+    <a href="../pages/marquee.html">Marquee Letters</a>
+    <a href="../pages/flower-walls.html">Backdrops</a>
+    <a href="../pages/photo-booth.html" style="color:var(--rose);font-weight:600">Photo Booth</a>
+    <a href="../pages/weddings.html">Weddings</a>
+    <a href="../pages/gallery.html">Gallery</a>
+    <a href="../pages/inquiry.html" class="nav-cta">Book Now</a>
+  </div>
+  <a class="nav-phone" href="tel:+15717861516">571-786-1516</a>
+  <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+</nav>
+<div class="mobile-menu" id="mobile-menu">
+  <a href="../index.html" onclick="closeMobile()">Home</a>
+  <a href="../pages/marquee.html" onclick="closeMobile()">Marquee Letters</a>
+  <a href="../pages/flower-walls.html" onclick="closeMobile()">Backdrops</a>
+  <a href="../pages/photo-booth.html" onclick="closeMobile()">Photo Booth</a>
+  <a href="../pages/weddings.html" onclick="closeMobile()">Weddings</a>
+  <a href="../pages/gallery.html" onclick="closeMobile()">Gallery</a>
+  <a href="../pages/inquiry.html" onclick="closeMobile()">Book Now</a>
+  <a class="mobile-phone" href="tel:+15717861516">✆ 571-786-1516</a>
+</div>
 
+<div class="page-hero">
+  <div class="section-label">Photo Booth Rental</div>
+  <h1>Digital Photo Booth<br><span style="color:var(--rose)">For Your Event</span></h1>
+  <p>Self-running digital photo booth — guests take memorable photos all night. Instantly share via text, email, or airdrop. Like having a stationed photographer at your event.</p>
+  <div class="pricing-banner">
+    <div class="price-pill">$150 / Hour</div>
+    <div class="price-pill">$550 for 5 Hours</div>
+    <div class="price-pill">Print on Site: +$100/hr</div>
+  </div>
+  <a href="../pages/inquiry.html" class="btn btn-primary">Book Photo Booth</a>
+</div>
+
+<div class="page-content">
+  <div class="two-col">
+    <img src="https://static.wixstatic.com/media/3974b0_346bf7b9ac5d49ccb65ebfa5ddd446d9~mv2.jpg/v1/fill/w_500,h_430,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_edited.jpg" alt="Photo Booth">
+    <div>
+      <div class="section-label">What's Included</div>
+      <h2>Everything You Need</h2>
+      <ul class="feature-list">
+        <li>Self-running digital photo booth — no attendant needed</li>
+        <li>Instant sharing via text, email, or AirDrop</li>
+        <li>Full gallery delivered after your event</li>
+        <li>Custom layouts with any text, font color, or background</li>
+        <li>Black & white filter option</li>
+        <li>Short video mode instead of photos</li>
+        <li>Custom logo upload at no extra cost</li>
+        <li>Delivery, setup, and breakdown included</li>
+      </ul>
+      <div class="addon-box">
+        <h3>Add-Ons</h3>
+        <p>Photo booth props: <strong>+$50</strong></p>
+        <p style="margin-top:6px">Print on site: <strong>+$100/hr</strong></p>
+      </div>
+      <a href="../pages/inquiry.html" class="btn btn-primary" style="margin-top:1.5rem">Book Now</a>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <div class="section-label">Sample Layouts</div>
+    <h2 class="section-title">Custom Photo Layouts</h2>
+    <p class="section-sub" style="margin:0 auto 0">We offer fully customized layouts at no additional cost — choose any text, color, or design.</p>
+  </div>
+  <div class="gallery-grid">
+    <img src="https://static.wixstatic.com/media/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png/v1/fit/w_480,h_640,q_90/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png" alt="Photo layout">
+    <img src="https://static.wixstatic.com/media/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png/v1/fit/w_480,h_640,q_90/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png" alt="Photo layout">
+    <img src="https://static.wixstatic.com/media/3974b0_e1aee1bfba3e4c7e81df6a39c8270c6c~mv2.jpg/v1/fit/w_480,h_379,q_90/3974b0_e1aee1bfba3e4c7e81df6a39c8270c6c~mv2.jpg" alt="Photo layout">
+    <img src="https://static.wixstatic.com/media/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg/v1/fit/w_480,h_361,q_90/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg" alt="Photo layout">
+    <img src="https://static.wixstatic.com/media/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg/v1/fit/w_480,h_724,q_90/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg" alt="Photo layout">
+    <img src="https://static.wixstatic.com/media/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg/v1/fit/w_480,h_729,q_90/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg" alt="Photo layout">
+  </div>
+</div>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="nav-logo" href="../index.html"><div class="logo-icon">G</div><span>GlowUp Rentals</span></a>
+      <p style="margin-top:12px">Reliable, insured event decor rentals with delivery, setup, and breakdown included.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <a href="../pages/marquee.html">Marquee Letters</a>
+      <a href="../pages/photo-booth.html">Photo Booth</a>
+      <a href="../pages/flower-walls.html">Flower Walls</a>
+      <a href="../pages/weddings.html">Weddings</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a class="footer-phone" href="tel:+15717861516">571-786-1516</a>
+      <a href="../pages/inquiry.html">Book Now</a>
+      <a href="../pages/gallery.html">Gallery</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2024 GlowUp Rentals LLC. All rights reserved.</span>
+    <span>Alexandria, VA · Serving the DMV & beyond</span>
+  </div>
+</footer>
+<script>
+document.getElementById('hamburger').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('open'));
+function closeMobile(){document.getElementById('mobile-menu').classList.remove('open')}
+window.addEventListener('scroll',()=>document.getElementById('main-nav').classList.toggle('scrolled',window.scrollY>20));
+</script>
+</body>
+</html>
