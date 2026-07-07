@@ -404,3 +404,19 @@ footer {
   margin-bottom: 8px;
   line-height: 1.5;
 }
+
+/* ---- PRICE BOX UNDER PHOTO (like dmvflowerwalls) ---- */
+.service-price-box {
+  background: white;
+  border: 1.5px solid var(--gray-light);
+  border-top: none;
+  padding: 12px;
+  text-align: center;
+}
+.service-price-amount {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--dark);
+  letter-spacing: 0.02em;
+}
