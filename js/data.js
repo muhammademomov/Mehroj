@@ -18,7 +18,7 @@ const SITE_DATA = {
       icon: "✦",
       price: "From $75",
       priceDetail: "3ft Letters $75 · 4ft Numbers $100",
-      link: "./marquee.html",
+      link: "pages/marquee.html",
       description: "Light-up marquee letters for weddings, proposals, birthdays, and corporate events. Delivery, setup, and breakdown included.",
       image: "https://static.wixstatic.com/media/3974b0_300e5c6c990e4d779f648eff2499ec39~mv2.jpg/v1/fill/w_291,h_300,al_c,q_80/IMG_1040_edited.jpg"
     },
@@ -28,7 +28,7 @@ const SITE_DATA = {
       icon: "◉",
       price: "$150/hr",
       priceDetail: "$550 for 5 Hours · Print on site: +$100/hr",
-      link: "./photo-booth.html",
+      link: "pages/photo-booth.html",
       description: "Modern photo booth rentals with on-site setup and pickup. Perfect for weddings, parties, and corporate events.",
       image: "https://static.wixstatic.com/media/3974b0_16a8513f877b462ea85f9d5e6ae76d93~mv2.jpg/v1/fill/w_410,h_410,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_JPG.jpg"
     },
@@ -38,7 +38,7 @@ const SITE_DATA = {
       icon: "❋",
       price: "$450",
       priceDetail: "8×8 ft · All colors available",
-      link: "./flower-walls.html",
+      link: "pages/flower-walls.html",
       description: "Luxury floral backdrops and flower wall rentals. White, pink, greenery, red, purple and more.",
       image: "https://static.wixstatic.com/media/3974b0_04b0fef52a614d1b909cf6c836c1ead2~mv2.jpg/v1/fill/w_291,h_300,al_c,q_80/White%20Flowerwall%20Backdrop%20Wedding%20Decor_.jpg"
     },
@@ -48,7 +48,7 @@ const SITE_DATA = {
       icon: "◎",
       price: "$200",
       priceDetail: "Per balloon column",
-      link: "./inquiry.html",
+      link: "pages/inquiry.html",
       description: "Custom balloon arches, garlands, columns, and organic balloon installations across the DMV area.",
       image: "https://static.wixstatic.com/media/3974b0_0338f41e7e254a36840afb9d685a5d49~mv2.jpeg/v1/fill/w_292,h_300,al_c,q_80/IMG_9368_HEIC.jpeg"
     }
