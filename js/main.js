@@ -16,7 +16,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   applyBranding();
   renderServices();
-  renderIndividualPrices();
   renderPackages();
   renderReviews();
   renderFAQ();
@@ -52,37 +51,24 @@ function applyBranding() {
   if(fa) fa.textContent = d.areas;
 }
 
-// ---- SERVICES ----
+// ---- SERVICES (с ценой под фото как у dmvflowerwalls) ----
 function renderServices() {
   const grid = document.getElementById('services-grid');
   if(!grid) return;
   grid.innerHTML = SITE_DATA.services.map(s => `
-    <div class="service-card reveal">
+    <a href="${s.link || '#contact'}" class="service-card reveal" style="text-decoration:none;color:inherit;display:block">
       <div class="service-img">
         <img src="${s.image}" alt="${s.title}" loading="lazy">
       </div>
+      <div class="service-price-box">
+        <div class="service-price-amount">${s.price || ''}</div>
+      </div>
       <div class="service-body">
-        <div class="service-price-tag">${s.price || ''}</div>
         <h3>${s.title}</h3>
         ${s.priceDetail ? `<div class="service-price-detail">${s.priceDetail}</div>` : ''}
         <p>${s.description}</p>
-        <a href="${s.link || '#contact'}" class="btn btn-outline" style="margin-top:12px;padding:10px 20px;font-size:13px">View Details</a>
       </div>
-    </div>
-  `).join('');
-}
-
-// ---- INDIVIDUAL PRICES ----
-function renderIndividualPrices() {
-  const grid = document.getElementById('individual-grid');
-  if(!grid) return;
-  grid.innerHTML = SITE_DATA.individualPrices.map(p => `
-    <div class="price-card reveal">
-      <h3>${p.title}</h3>
-      <div class="price-big">${p.price}</div>
-      <div class="price-unit">${p.unit}</div>
-      ${p.note ? `<div class="price-note">${p.note}</div>` : ''}
-    </div>
+    </a>
   `).join('');
 }
 
@@ -140,7 +126,6 @@ function renderFAQ() {
 function toggleFAQ(btn) {
   const answer = btn.nextElementSibling;
   const isOpen = btn.classList.contains('open');
-  // Close all
   document.querySelectorAll('.faq-q.open').forEach(b => {
     b.classList.remove('open');
     b.nextElementSibling.classList.remove('open');
@@ -186,7 +171,6 @@ function initScrollReveal() {
 
   document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 
-  // Also observe dynamically added elements
   const mutObs = new MutationObserver(() => {
     document.querySelectorAll('.reveal:not(.visible)').forEach(el => obs.observe(el));
   });
