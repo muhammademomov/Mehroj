@@ -477,3 +477,25 @@ footer {
 }
 .service-body > p { display: none; }
 .service-icon { display: none; }
+
+
+/* ---- MAKE CARDS CLEARLY CLICKABLE ---- */
+.service-card {
+  cursor: pointer;
+  position: relative;
+}
+.service-card::after {
+  content: "View Details →";
+  display: block;
+  text-align: center;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rose);
+  background: var(--rose-pale);
+  border-top: 1px solid var(--rose-light);
+  transition: background 0.2s;
+}
+.service-card:hover::after {
+  background: var(--rose-light);
+}
