@@ -1,19 +1,17 @@
 // ============================================
-// MAIN.JS — Renders content from SITE_DATA
+// MAIN.JS — Loads data from Railway API
 // ============================================
 
-// Load saved data from admin panel (if any)
-(function loadSavedData() {
-  const stored = localStorage.getItem('glowup_site_data');
-  if(stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      Object.assign(SITE_DATA, parsed);
-    } catch(e) {}
-  }
-})();
+const API_URL = 'https://mehroj-production.up.railway.app';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch(API_URL + '/api/data');
+    const data = await res.json();
+    Object.assign(SITE_DATA, data);
+  } catch(e) {
+    console.log('Using default data');
+  }
   applyBranding();
   renderServices();
   renderPackages();
@@ -51,12 +49,12 @@ function applyBranding() {
   if(fa) fa.textContent = d.areas;
 }
 
-// ---- SERVICES (с ценой под фото как у dmvflowerwalls) ----
+// ---- SERVICES ----
 function renderServices() {
   const grid = document.getElementById('services-grid');
   if(!grid) return;
   grid.innerHTML = SITE_DATA.services.map(s => `
-    <a href="${s.link || '#contact'}" class="service-card reveal" style="text-decoration:none;color:inherit;display:block">
+    <a href="${s.link || 'pages/inquiry.html'}" class="service-card reveal" style="text-decoration:none;color:inherit;display:block">
       <div class="service-img">
         <img src="${s.image}" alt="${s.title}" loading="lazy">
       </div>
@@ -112,9 +110,9 @@ function renderReviews() {
 function renderFAQ() {
   const grid = document.getElementById('faq-grid');
   if(!grid) return;
-  grid.innerHTML = SITE_DATA.faq.map((f, i) => `
+  grid.innerHTML = SITE_DATA.faq.map((f) => `
     <div class="faq-item reveal">
-      <button class="faq-q" onclick="toggleFAQ(this)" aria-expanded="false">
+      <button class="faq-q" onclick="toggleFAQ(this)">
         ${f.question}
         <span class="faq-chevron">+</span>
       </button>
@@ -162,15 +160,10 @@ function closeMobile() {
 function initScrollReveal() {
   const obs = new IntersectionObserver((entries) => {
     entries.forEach(e => {
-      if(e.isIntersecting) {
-        e.target.classList.add('visible');
-        obs.unobserve(e.target);
-      }
+      if(e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
     });
-  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-
+  }, { threshold: 0.1 });
   document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
-
   const mutObs = new MutationObserver(() => {
     document.querySelectorAll('.reveal:not(.visible)').forEach(el => obs.observe(el));
   });
