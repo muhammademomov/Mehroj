@@ -306,14 +306,22 @@ function logout(){
 
 // ===== DATA =====
 let D = null;
-function loadData(){
-  const s = localStorage.getItem(DATA_KEY);
-  D = s ? JSON.parse(s) : JSON.parse(JSON.stringify(SITE_DATA));
+async function loadData(){
+  try {
+    const res = await fetch(API_URL + '/api/data');
+    D = await res.json();
+  } catch(e) {
+    const s = localStorage.getItem(DATA_KEY);
+    D = s ? JSON.parse(s) : JSON.parse(JSON.stringify(SITE_DATA));
+  }
   renderAll();
   populateBranding();
 }
-function saveAll(){
-  // Save branding
+const API_URL = 'https://mehroj-production.up.railway.app';
+const ADMIN_SECRET = 'glowup2024';
+
+async function saveAll(){
+  // Save branding fields
   D.name = document.getElementById('b-name').value;
   D.tagline = document.getElementById('b-tagline').value;
   D.phone = document.getElementById('b-phone').value;
@@ -324,10 +332,32 @@ function saveAll(){
   const u=document.getElementById('b-user').value.trim();
   const p=document.getElementById('b-pass').value.trim();
   if(u&&p) localStorage.setItem(CRED_KEY,JSON.stringify({user:u,pass:p}));
-  localStorage.setItem(DATA_KEY, JSON.stringify(D));
+
   const m=document.getElementById('saved-msg');
+  m.textContent = 'Saving...';
   m.style.display='inline';
-  setTimeout(()=>m.style.display='none',2500);
+
+  try {
+    const res = await fetch(API_URL + '/api/data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-secret': ADMIN_SECRET
+      },
+      body: JSON.stringify(D)
+    });
+    const result = await res.json();
+    if(result.success){
+      m.textContent = '✓ Saved! Site updated!';
+      setTimeout(()=>{ m.style.display='none'; m.textContent='✓ Saved!'; }, 3000);
+    } else {
+      m.textContent = '✗ Error saving';
+      setTimeout(()=>m.style.display='none', 3000);
+    }
+  } catch(e) {
+    m.textContent = '✗ Connection error';
+    setTimeout(()=>m.style.display='none', 3000);
+  }
 }
 function populateBranding(){
   document.getElementById('b-name').value = D.name||'';
