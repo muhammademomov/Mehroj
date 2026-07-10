@@ -514,9 +514,14 @@ function buildForm(type, item){
       <div class="fg"><label>Price Detail</label><input id="f-priceDetail" value="${item?.priceDetail||''}" placeholder="e.g. 3ft $75 · 4ft $100"></div>
       <div class="fg full"><label>Description</label><textarea id="f-desc">${item?.description||''}</textarea></div>
       <div class="fg full"><label>Link (page URL)</label><input id="f-link" value="${item?.link||''}" placeholder="pages/marquee.html"></div>
+      <div class="fg full"><label>YouTube Video URL (optional)</label><input id="f-video" value="${item?.video||''}" placeholder="https://www.youtube.com/watch?v=..."></div>
       <div class="fg full">
-        <label>Photo</label>
+        <label>Main Photo</label>
         ${imgUploadField(item?.image)}
+      </div>
+      <div class="fg full">
+        <label>Gallery Photos (paste URLs, one per line)</label>
+        <textarea id="f-gallery" style="min-height:100px" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg&#10;https://example.com/photo3.jpg">${(item?.gallery||[]).join('\n')}</textarea>
       </div>
     </div>`;
 
@@ -543,9 +548,14 @@ function buildForm(type, item){
           <label for="f-highlight" style="font-size:14px;font-weight:500;text-transform:none;letter-spacing:0">Mark as Featured / Most Popular</label>
         </div>
       </div>
+      <div class="fg full"><label>YouTube Video URL (optional)</label><input id="f-video" value="${item?.video||''}" placeholder="https://www.youtube.com/watch?v=..."></div>
       <div class="fg full">
-        <label>Package Photo</label>
+        <label>Main Photo</label>
         ${imgUploadField(item?.image)}
+      </div>
+      <div class="fg full">
+        <label>Gallery Photos (paste URLs, one per line)</label>
+        <textarea id="f-gallery" style="min-height:100px" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg">${(item?.gallery||[]).join('\n')}</textarea>
       </div>
     </div>`;
 
@@ -616,18 +626,26 @@ function readForm(type){
   const g = id => { const el=document.getElementById(id); return el?el.value.trim():'' };
   const img = g('f-img-url') || g('f-img-file');
 
-  if(type==='service') return {
-    icon:'✦', title:g('f-title'), price:g('f-price'),
-    priceDetail:g('f-priceDetail'), description:g('f-desc'),
-    link:g('f-link'), image:g('f-img-url')
-  };
+  if(type==='service'){
+    const galleryRaw = g('f-gallery');
+    const gallery = galleryRaw ? galleryRaw.split('\n').map(u=>u.trim()).filter(Boolean) : [];
+    return {
+      icon:'✦', title:g('f-title'), price:g('f-price'),
+      priceDetail:g('f-priceDetail'), description:g('f-desc'),
+      link:g('f-link'), image:g('f-img-url'),
+      video:g('f-video'), gallery
+    };
+  }
   if(type==='package'){
     const rows=[...document.querySelectorAll('#inc-editor .inc-row input')];
     const includes=rows.map(r=>r.value.trim()).filter(Boolean);
+    const galleryRaw = g('f-gallery');
+    const gallery = galleryRaw ? galleryRaw.split('\n').map(u=>u.trim()).filter(Boolean) : [];
     return {
       name:g('f-name'), price:g('f-price'), tag:g('f-tag'),
       includes, note:g('f-note'), image:g('f-img-url'),
-      highlight:document.getElementById('f-highlight').checked
+      highlight:document.getElementById('f-highlight').checked,
+      video:g('f-video'), gallery
     };
   }
   if(type==='review') return {
