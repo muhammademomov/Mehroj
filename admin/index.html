@@ -311,8 +311,7 @@ async function loadData(){
     const res = await fetch(API_URL + '/api/data');
     D = await res.json();
   } catch(e) {
-    const s = localStorage.getItem(DATA_KEY);
-    D = s ? JSON.parse(s) : JSON.parse(JSON.stringify(SITE_DATA));
+    D = JSON.parse(JSON.stringify(SITE_DATA));
   }
   renderAll();
   populateBranding();
@@ -463,10 +462,18 @@ function showTab(name,btn){
 }
 
 // ===== DELETE =====
-function deleteItem(col,idx){
+async function deleteItem(col,idx){
   if(!confirm('Delete this item?')) return;
   D[col].splice(idx,1);
   renderAll();
+  // Auto-save to Railway after delete
+  try {
+    await fetch(API_URL + '/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify(D)
+    });
+  } catch(e) { console.log('Auto-save failed', e); }
 }
 
 // ===== MODAL =====
