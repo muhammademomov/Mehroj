@@ -292,17 +292,28 @@ function login(){
   const p=document.getElementById('lp').value.trim();
   const c=getCreds();
   if(u===c.user && p===c.pass){
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('admin-screen').style.display='block';
-    loadData();
+    localStorage.setItem('glowup_session','active');
+    showAdmin();
   } else {
     document.getElementById('lerr').style.display='block';
   }
 }
+function showAdmin(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('admin-screen').style.display='block';
+  loadData();
+}
 function logout(){
+  localStorage.removeItem('glowup_session');
   document.getElementById('admin-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
 }
+// Auto-login if session exists
+window.addEventListener('DOMContentLoaded', () => {
+  if(localStorage.getItem('glowup_session') === 'active') {
+    showAdmin();
+  }
+});
 
 // ===== DATA =====
 let D = null;
