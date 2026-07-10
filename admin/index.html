@@ -514,14 +514,25 @@ function buildForm(type, item){
       <div class="fg"><label>Price Detail</label><input id="f-priceDetail" value="${item?.priceDetail||''}" placeholder="e.g. 3ft $75 · 4ft $100"></div>
       <div class="fg full"><label>Description</label><textarea id="f-desc">${item?.description||''}</textarea></div>
       <div class="fg full"><label>Link (page URL)</label><input id="f-link" value="${item?.link||''}" placeholder="pages/marquee.html"></div>
-      <div class="fg full"><label>YouTube Video URL (optional)</label><input id="f-video" value="${item?.video||''}" placeholder="https://www.youtube.com/watch?v=..."></div>
       <div class="fg full">
         <label>Main Photo</label>
-        ${imgUploadField(item?.image)}
+        ${imgUploadField(item?.image,'main')}
       </div>
       <div class="fg full">
-        <label>Gallery Photos (paste URLs, one per line)</label>
-        <textarea id="f-gallery" style="min-height:100px" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg&#10;https://example.com/photo3.jpg">${(item?.gallery||[]).join('\n')}</textarea>
+        <label>Gallery Photos</label>
+        <button type="button" onclick="uploadMultiplePhotos('f-gallery')" style="padding:10px 20px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b);margin-bottom:8px;display:block">
+          📷 Upload Multiple Photos
+        </button>
+        <div id="gallery-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:600;margin-bottom:6px"></div>
+        <textarea id="f-gallery" style="min-height:80px;font-size:12px" placeholder="Photo URLs will appear here after upload...">${(item?.gallery||[]).join('\n')}</textarea>
+      </div>
+      <div class="fg full">
+        <label>Video</label>
+        <button type="button" onclick="uploadVideo('f-video','video-preview')" style="padding:10px 20px;background:#1a1118;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b);margin-bottom:8px;display:block">
+          🎬 Upload Video
+        </button>
+        <div id="video-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:600;margin-bottom:6px"></div>
+        <input id="f-video" value="${item?.video||''}" placeholder="Video URL will appear here after upload..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);outline:none">
       </div>
     </div>`;
 
@@ -548,14 +559,25 @@ function buildForm(type, item){
           <label for="f-highlight" style="font-size:14px;font-weight:500;text-transform:none;letter-spacing:0">Mark as Featured / Most Popular</label>
         </div>
       </div>
-      <div class="fg full"><label>YouTube Video URL (optional)</label><input id="f-video" value="${item?.video||''}" placeholder="https://www.youtube.com/watch?v=..."></div>
       <div class="fg full">
         <label>Main Photo</label>
-        ${imgUploadField(item?.image)}
+        ${imgUploadField(item?.image,'main')}
       </div>
       <div class="fg full">
-        <label>Gallery Photos (paste URLs, one per line)</label>
-        <textarea id="f-gallery" style="min-height:100px" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg">${(item?.gallery||[]).join('\n')}</textarea>
+        <label>Gallery Photos</label>
+        <button type="button" onclick="uploadMultiplePhotos('f-gallery')" style="padding:10px 20px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b);margin-bottom:8px;display:block">
+          📷 Upload Multiple Photos
+        </button>
+        <div id="gallery-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:600;margin-bottom:6px"></div>
+        <textarea id="f-gallery" style="min-height:80px;font-size:12px" placeholder="Photo URLs will appear here after upload...">${(item?.gallery||[]).join('\n')}</textarea>
+      </div>
+      <div class="fg full">
+        <label>Video</label>
+        <button type="button" onclick="uploadVideo('f-video','video-preview')" style="padding:10px 20px;background:#1a1118;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b);margin-bottom:8px;display:block">
+          🎬 Upload Video
+        </button>
+        <div id="video-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:600;margin-bottom:6px"></div>
+        <input id="f-video" value="${item?.video||''}" placeholder="Video URL will appear here after upload..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);outline:none">
       </div>
     </div>`;
 
@@ -578,30 +600,152 @@ function buildForm(type, item){
     </div>`;
 }
 
-function imgUploadField(currentImg){
+const CLOUD_NAME = 'dvamqpmd5';
+const UPLOAD_PRESET = 'glowup_upload';
+
+function imgUploadField(currentImg, fieldId='main'){
   return `
-    <div class="img-upload-area" onclick="document.getElementById('f-img-file').click()">
-      <div style="font-size:2rem">📷</div>
-      <p>Click to upload photo<br><small>Or paste URL below</small></p>
-      ${currentImg ? `<img src="${currentImg}" class="img-preview" id="img-preview" style="display:block">` : '<img class="img-preview" id="img-preview">'}
-    </div>
-    <input type="file" id="f-img-file" accept="image/*" style="display:none" onchange="previewImg(this)">
-    <div class="img-url-input">
-      <input id="f-img-url" placeholder="Or paste image URL here..." value="${currentImg||''}" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);outline:none" oninput="updateImgFromUrl(this.value)">
+    <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.2rem;background:var(--rose-pale);text-align:center">
+      ${currentImg ? `<img src="${currentImg}" id="img-preview-${fieldId}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:10px">` : `<img id="img-preview-${fieldId}" style="display:none;width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:10px">`}
+      <div id="upload-progress-${fieldId}" style="display:none;margin-bottom:8px">
+        <div style="background:var(--rose-light);border-radius:20px;height:6px;overflow:hidden">
+          <div id="progress-bar-${fieldId}" style="background:var(--rose);height:100%;width:0%;transition:width 0.3s"></div>
+        </div>
+        <div id="progress-text-${fieldId}" style="font-size:12px;color:var(--gray);margin-top:4px">Uploading...</div>
+      </div>
+      <button type="button" onclick="uploadToCloudinary('image','f-img-url-${fieldId}','img-preview-${fieldId}','upload-progress-${fieldId}','progress-bar-${fieldId}','progress-text-${fieldId}')" 
+        style="padding:10px 20px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b);margin-bottom:8px">
+        📷 Upload Photo
+      </button>
+      <input type="hidden" id="f-img-url-${fieldId}" value="${currentImg||''}">
+      <div style="font-size:12px;color:var(--gray)">or paste URL:</div>
+      <input id="f-img-url-${fieldId}-text" placeholder="https://..." value="${currentImg||''}" 
+        style="width:100%;padding:8px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);outline:none;margin-top:6px"
+        oninput="syncImgUrl('${fieldId}',this.value)">
     </div>`;
 }
 
-function previewImg(input){
-  const file = input.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const prev = document.getElementById('img-preview');
-    prev.src = e.target.result;
-    prev.style.display = 'block';
-    document.getElementById('f-img-url').value = e.target.result;
+function syncImgUrl(fieldId, url){
+  document.getElementById('f-img-url-'+fieldId).value = url;
+  const prev = document.getElementById('img-preview-'+fieldId);
+  if(url){ prev.src=url; prev.style.display='block'; }
+  else { prev.style.display='none'; }
+}
+
+async function uploadToCloudinary(type, urlFieldId, previewId, progressId, barId, textId){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = type==='video' ? 'video/*' : 'image/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    document.getElementById(progressId).style.display='block';
+    document.getElementById(barId).style.width='0%';
+    document.getElementById(textId).textContent='Uploading to Cloudinary...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('cloud_name', CLOUD_NAME);
+
+    const resourceType = type === 'video' ? 'video' : 'image';
+    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if(e.lengthComputable){
+          const pct = Math.round(e.loaded/e.total*100);
+          document.getElementById(barId).style.width=pct+'%';
+          document.getElementById(textId).textContent=pct+'% uploaded';
+        }
+      };
+      xhr.onload = () => {
+        const result = JSON.parse(xhr.responseText);
+        if(result.secure_url){
+          document.getElementById(urlFieldId).value = result.secure_url;
+          const prev = document.getElementById(previewId);
+          prev.src = result.secure_url;
+          prev.style.display = 'block';
+          document.getElementById(textId).textContent='✓ Uploaded!';
+          document.getElementById(barId).style.width='100%';
+          setTimeout(()=>document.getElementById(progressId).style.display='none', 2000);
+        }
+      };
+      xhr.open('POST', url);
+      xhr.send(formData);
+    } catch(err){
+      document.getElementById(textId).textContent='Upload failed';
+    }
   };
-  reader.readAsDataURL(file);
+  input.click();
+}
+
+async function uploadMultiplePhotos(galleryFieldId){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.onchange = async (e) => {
+    const files = [...e.target.files];
+    if(!files.length) return;
+
+    const textarea = document.getElementById(galleryFieldId);
+    const status = document.getElementById('gallery-upload-status');
+    status.textContent = '0 / '+files.length+' uploaded...';
+    status.style.display='block';
+
+    let uploaded = 0;
+    const urls = textarea.value ? textarea.value.split('\n').filter(Boolean) : [];
+
+    for(const file of files){
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', UPLOAD_PRESET);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method:'POST', body:formData
+      });
+      const result = await res.json();
+      if(result.secure_url){
+        urls.push(result.secure_url);
+        uploaded++;
+        status.textContent = uploaded+' / '+files.length+' uploaded...';
+        textarea.value = urls.join('\n');
+      }
+    }
+    status.textContent = '✓ All '+files.length+' photos uploaded!';
+    setTimeout(()=>status.style.display='none', 3000);
+  };
+  input.click();
+}
+
+async function uploadVideo(videoFieldId, previewId){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'video/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const status = document.getElementById('video-upload-status');
+    status.textContent = 'Uploading video... (may take a minute)';
+    status.style.display='block';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, {
+      method:'POST', body:formData
+    });
+    const result = await res.json();
+    if(result.secure_url){
+      document.getElementById(videoFieldId).value = result.secure_url;
+      status.textContent = '✓ Video uploaded!';
+      setTimeout(()=>status.style.display='none', 3000);
+    }
+  };
+  input.click();
 }
 
 function updateImgFromUrl(url){
@@ -632,7 +776,7 @@ function readForm(type){
     return {
       icon:'✦', title:g('f-title'), price:g('f-price'),
       priceDetail:g('f-priceDetail'), description:g('f-desc'),
-      link:g('f-link'), image:g('f-img-url'),
+      link:g('f-link'), image:document.getElementById('f-img-url-main')?.value||g('f-img-url-main-text')||'',
       video:g('f-video'), gallery
     };
   }
@@ -643,7 +787,7 @@ function readForm(type){
     const gallery = galleryRaw ? galleryRaw.split('\n').map(u=>u.trim()).filter(Boolean) : [];
     return {
       name:g('f-name'), price:g('f-price'), tag:g('f-tag'),
-      includes, note:g('f-note'), image:g('f-img-url'),
+      includes, note:g('f-note'), image:document.getElementById('f-img-url-main')?.value||g('f-img-url-main-text')||'',
       highlight:document.getElementById('f-highlight').checked,
       video:g('f-video'), gallery
     };
