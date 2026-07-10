@@ -54,7 +54,7 @@ function renderServices() {
   const grid = document.getElementById('services-grid');
   if(!grid) return;
   grid.innerHTML = SITE_DATA.services.map(s => `
-    <a href="${s.link || 'pages/inquiry.html'}" class="service-card reveal" style="text-decoration:none;color:inherit;display:block">
+    <a href="pages/service.html?id=${s.id}&type=service" class="service-card reveal" style="text-decoration:none;color:inherit;display:block">
       <div class="service-img">
         <img src="${s.image}" alt="${s.title}" loading="lazy">
       </div>
@@ -64,7 +64,6 @@ function renderServices() {
       <div class="service-body">
         <h3>${s.title}</h3>
         ${s.priceDetail ? `<div class="service-price-detail">${s.priceDetail}</div>` : ''}
-        <p>${s.description}</p>
       </div>
     </a>
   `).join('');
@@ -75,7 +74,7 @@ function renderPackages() {
   const grid = document.getElementById('packages-grid');
   if(!grid) return;
   grid.innerHTML = SITE_DATA.packages.map(p => `
-    <div class="pkg-card ${p.highlight ? 'highlight' : ''} reveal">
+    <a href="pages/service.html?id=${p.id}&type=package" class="pkg-card ${p.highlight ? 'highlight' : ''} reveal" style="text-decoration:none;color:inherit;display:block">
       ${p.tag ? `<div class="pkg-tag">${p.tag}</div>` : ''}
       <div class="pkg-img">
         <img src="${p.image}" alt="${p.name}" loading="lazy">
@@ -88,7 +87,7 @@ function renderPackages() {
         </ul>
         ${p.note ? `<p class="pkg-note">${p.note}</p>` : ''}
       </div>
-    </div>
+    </a>
   `).join('');
 }
 
