@@ -560,6 +560,7 @@ function showTab(name,btn){
   document.querySelectorAll('.sid-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
+  if(name === 'inquiries') loadInquiries();
 }
 
 // ===== DELETE =====
@@ -1088,12 +1089,7 @@ async function saveComment(){
   }
 }
 
-// Load inquiries when tab opened
-const origShowTab = showTab;
-function showTab(name, btn){
-  origShowTab(name, btn);
-  if(name === 'inquiries') loadInquiries();
-}
+// Load inquiries when tab opened - handled inside showTab below
 
 // ===== AUTO SAVE =====
 async function autoSave(){
