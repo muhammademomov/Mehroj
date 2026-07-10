@@ -146,4 +146,38 @@ app.get('/', (req, res) => {
   res.json({ status: 'GlowUp API running ✓', services: siteData.services.length });
 });
 
+// ===== INQUIRIES =====
+let inquiries = [];
+
+// POST new inquiry from website form
+app.post('/api/inquiry', (req, res) => {
+  const inquiry = {
+    id: 'inq_' + Date.now(),
+    ...req.body,
+    status: 'new',
+    comment: '',
+    createdAt: new Date().toISOString()
+  };
+  inquiries.unshift(inquiry); // newest first
+  res.json({ success: true, id: inquiry.id });
+});
+
+// GET all inquiries (admin only)
+app.get('/api/inquiries', (req, res) => {
+  const secret = req.headers['x-admin-secret'];
+  if(secret !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(inquiries);
+});
+
+// PATCH update inquiry status/comment
+app.patch('/api/inquiry/:id', (req, res) => {
+  const secret = req.headers['x-admin-secret'];
+  if(secret !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  const inq = inquiries.find(i => i.id === req.params.id);
+  if(!inq) return res.status(404).json({ error: 'Not found' });
+  if(req.body.status) inq.status = req.body.status;
+  if(req.body.comment !== undefined) inq.comment = req.body.comment;
+  res.json({ success: true });
+});
+
 app.listen(PORT, () => console.log(`GlowUp API on port ${PORT}`));
