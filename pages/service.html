@@ -8,30 +8,171 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/style.css">
   <style>
-    .page-hero{padding:calc(var(--nav-h)+3rem) 2rem 3rem;text-align:center;background:linear-gradient(160deg,var(--rose-pale),var(--blush) 60%,white)}
-    .price-pill{display:inline-block;background:white;border:2px solid var(--rose);border-radius:50px;padding:10px 28px;font-family:var(--font-display);font-size:1.4rem;font-weight:700;color:var(--rose);margin-bottom:1.5rem}
-    .gallery-wrap{max-width:1000px;margin:3rem auto;padding:0 2rem}
-    .slides{position:relative;border-radius:16px;overflow:hidden;background:#111;aspect-ratio:16/9}
-    .slides img{width:100%;height:100%;object-fit:cover;display:none;position:absolute;top:0;left:0}
-    .slides img.active{display:block}
-    .slide-btn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.92);border:none;cursor:pointer;width:48px;height:48px;border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 12px rgba(0,0,0,0.15)}
-    .slide-btn:hover{background:white}
-    .slide-prev{left:14px}.slide-next{right:14px}
-    .slide-count{position:absolute;bottom:14px;right:14px;background:rgba(0,0,0,0.55);color:white;font-size:12px;padding:5px 14px;border-radius:20px}
-    .thumbs{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
-    .thumbs img{width:80px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:0.55;transition:all .2s;flex-shrink:0;border:2px solid transparent}
-    .thumbs img.active{opacity:1;border-color:var(--rose)}
-    .video-wrap{max-width:1000px;margin:0 auto 3rem;padding:0 2rem}
-    .video-wrap h2{font-family:var(--font-display);font-size:1.5rem;margin-bottom:1rem}
-    .video-container{border-radius:16px;overflow:hidden;background:#000}
-    .video-container video{width:100%;display:block;max-height:500px}
-    .service-content{max-width:1000px;margin:0 auto;padding:0 2rem 4rem;display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:start}
-    .feature-list{list-style:none;margin:1rem 0}
-    .feature-list li{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rose-pale);font-size:15px;color:var(--gray)}
-    .feature-list li:last-child{border-bottom:none}
-    .feature-list li::before{content:"✓";color:var(--rose);font-weight:700;flex-shrink:0}
-    .loading{text-align:center;padding:6rem;color:var(--gray);font-size:1.1rem}
-    @media(max-width:768px){.service-content{grid-template-columns:1fr}.slides{aspect-ratio:4/3}}
+    .svc-hero {
+      padding: calc(var(--nav-h) + 2.5rem) 2rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .svc-hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      color: var(--dark);
+      margin-bottom: 0.5rem;
+    }
+    .svc-prices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 2rem;
+    }
+    .svc-price-tag {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--dark);
+      background: var(--rose-pale);
+      border: 1px solid var(--rose-light);
+      border-radius: 6px;
+      padding: 6px 16px;
+    }
+    .svc-main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      max-width: 1100px;
+      margin: 0 auto 3rem;
+      padding: 0 2rem;
+      align-items: start;
+    }
+    .svc-main-img {
+      width: 100%;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .svc-main-img img {
+      width: 100%;
+      height: 400px;
+      object-fit: cover;
+      display: block;
+    }
+    .svc-main-text h2 {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      margin-bottom: 1rem;
+    }
+    .svc-main-text p {
+      color: var(--gray);
+      line-height: 1.85;
+      font-size: 15px;
+      margin-bottom: 1rem;
+    }
+    .svc-main-text .price-detail {
+      color: var(--rose);
+      font-weight: 600;
+      font-size: 15px;
+      margin-bottom: 1.5rem;
+    }
+
+    /* VIDEO */
+    .svc-video {
+      max-width: 1100px;
+      margin: 0 auto 3rem;
+      padding: 0 2rem;
+    }
+    .svc-video h2 {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      margin-bottom: 1rem;
+    }
+    .svc-video video {
+      width: 100%;
+      border-radius: var(--radius-md);
+      max-height: 560px;
+      background: #000;
+    }
+
+    /* PHOTO GRID */
+    .svc-gallery {
+      max-width: 1100px;
+      margin: 0 auto 4rem;
+      padding: 0 2rem;
+    }
+    .svc-gallery h2 {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      margin-bottom: 1.2rem;
+    }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .photo-grid img {
+      width: 100%;
+      height: 220px;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
+      transition: transform 0.3s;
+      cursor: pointer;
+    }
+    .photo-grid img:hover { transform: scale(1.03); }
+
+    /* LIGHTBOX */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .lb-close {
+      position: absolute;
+      top: 1rem;
+      right: 1.5rem;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      background: none;
+      border: none;
+      line-height: 1;
+    }
+    .lb-prev, .lb-next {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: none;
+      cursor: pointer;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .lb-prev:hover, .lb-next:hover { background: rgba(255,255,255,0.3); }
+    .lb-prev { left: 1rem; }
+    .lb-next { right: 1rem; }
+
+    .loading { text-align: center; padding: 6rem; color: var(--gray); font-size: 1.1rem; }
+
+    @media(max-width: 768px) {
+      .svc-main { grid-template-columns: 1fr; gap: 1.5rem; }
+      .svc-main-img img { height: 260px; }
+    }
   </style>
 </head>
 <body>
@@ -58,149 +199,160 @@
   <a class="mobile-phone" href="tel:+15717861516">✆ 571-786-1516</a>
 </div>
 
-<div class="loading" id="loading">⏳ Loading...</div>
+<div class="loading" id="loading">Loading...</div>
 
 <div id="page-content" style="display:none">
-  <div class="page-hero">
-    <div class="section-label" id="s-label">Service</div>
+
+  <!-- TITLE + PRICE -->
+  <div class="svc-hero">
     <h1 id="s-title"></h1>
-    <div class="price-pill" id="s-price"></div>
-    <p id="s-desc" style="max-width:600px;margin:0 auto 2rem"></p>
-    <a href="../pages/inquiry.html" class="btn btn-primary">Book This Service</a>
+    <div class="svc-prices" id="s-prices"></div>
   </div>
 
-  <div class="gallery-wrap" id="gallery-section" style="display:none">
-    <div class="section-head" style="margin-bottom:1.5rem">
-      <div class="section-label">Gallery</div>
-      <h2 class="section-title" id="s-gallery-title">Photos</h2>
+  <!-- MAIN PHOTO + DESCRIPTION -->
+  <div class="svc-main">
+    <div class="svc-main-img">
+      <img id="s-main-img" src="" alt="Service photo">
     </div>
-    <div class="slides" id="slides">
-      <button class="slide-btn slide-prev" onclick="slidePrev()">‹</button>
-      <button class="slide-btn slide-next" onclick="slideNext()">›</button>
-      <div class="slide-count" id="slide-count">1 / 1</div>
-    </div>
-    <div class="thumbs" id="thumbs"></div>
-  </div>
-
-  <div class="video-wrap" id="video-section" style="display:none">
-    <h2>Watch It In Action</h2>
-    <div class="video-container">
-      <video id="s-video" controls playsinline></video>
-    </div>
-  </div>
-
-  <div class="service-content">
-    <div>
-      <div class="section-label">About</div>
+    <div class="svc-main-text">
       <h2 id="s-about-title"></h2>
-      <p id="s-about-desc" style="color:var(--gray);line-height:1.8;margin-top:0.8rem"></p>
-      <p id="s-price-detail" style="color:var(--rose);font-weight:600;margin-top:1rem;font-size:15px"></p>
-    </div>
-    <div>
-      <div class="section-label">Always Included</div>
-      <ul class="feature-list">
-        <li>Delivery, setup & breakdown</li>
-        <li>Professional service team</li>
-        <li>Fully insured</li>
-        <li>Serving DC, MD, VA, Philadelphia & NYC</li>
-        <li>Weddings, birthdays, corporate events</li>
-      </ul>
-      <a href="../pages/inquiry.html" class="btn btn-primary" style="margin-top:1.5rem;display:inline-flex">Get a Quote →</a>
+      <p id="s-desc"></p>
+      <p class="price-detail" id="s-price-detail"></p>
+      <a href="../pages/inquiry.html" class="btn btn-primary">Book Now</a>
     </div>
   </div>
+
+  <!-- VIDEO -->
+  <div class="svc-video" id="video-section" style="display:none">
+    <h2>Watch It In Action</h2>
+    <video id="s-video" controls playsinline></video>
+  </div>
+
+  <!-- PHOTO GALLERY GRID -->
+  <div class="svc-gallery" id="gallery-section" style="display:none">
+    <h2 id="s-gallery-title">Gallery</h2>
+    <div class="photo-grid" id="photo-grid"></div>
+  </div>
+
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <button class="lb-close" onclick="closeLightbox()">×</button>
+  <button class="lb-prev" onclick="lbPrev(event)">‹</button>
+  <img id="lb-img" src="" alt="">
+  <button class="lb-next" onclick="lbNext(event)">›</button>
 </div>
 
 <footer>
   <div class="footer-grid">
-    <div class="footer-brand"><a class="nav-logo" href="../index.html"><div class="logo-icon">G</div><span>GlowUp Rentals</span></a><p style="margin-top:12px">Reliable, insured event decor rentals.</p></div>
-    <div class="footer-col"><h4>Services</h4><a href="../pages/flower-walls.html">Flower Walls</a><a href="../pages/photo-booth.html">Photo Booth</a><a href="../pages/weddings.html">Weddings</a></div>
-    <div class="footer-col"><h4>Contact</h4><a class="footer-phone" href="tel:+15717861516">571-786-1516</a><a href="../pages/inquiry.html">Book Now</a></div>
+    <div class="footer-brand">
+      <a class="nav-logo" href="../index.html"><div class="logo-icon">G</div><span>GlowUp Rentals</span></a>
+      <p style="margin-top:12px">Reliable, insured event decor rentals with delivery, setup, and breakdown included.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <a href="../pages/flower-walls.html">Flower Walls</a>
+      <a href="../pages/photo-booth.html">Photo Booth</a>
+      <a href="../pages/weddings.html">Weddings</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contact</h4>
+      <a class="footer-phone" href="tel:+15717861516">571-786-1516</a>
+      <a href="../pages/inquiry.html">Book Now</a>
+    </div>
   </div>
-  <div class="footer-bottom"><span>© 2024 GlowUp Rentals LLC.</span></div>
+  <div class="footer-bottom"><span>© 2024 GlowUp Rentals LLC. All rights reserved.</span></div>
 </footer>
 
 <script>
 const API_URL = 'https://mehroj-production.up.railway.app';
-let currentSlide = 0;
-let totalSlides = 0;
-
 const params = new URLSearchParams(window.location.search);
 const serviceId = params.get('id');
 const type = params.get('type') || 'service';
+
+let galleryPhotos = [];
+let lbIndex = 0;
 
 async function loadPage(){
   try {
     const res = await fetch(API_URL + '/api/data');
     const data = await res.json();
-    const item = type==='package'
-      ? data.packages.find(p=>p.id===serviceId)
-      : data.services.find(s=>s.id===serviceId);
 
-    if(!item){ document.getElementById('loading').textContent='Not found'; return; }
+    const item = type === 'package'
+      ? data.packages.find(p => p.id === serviceId)
+      : data.services.find(s => s.id === serviceId);
 
-    document.title = (item.title||item.name) + ' | GlowUp Rentals';
-    document.getElementById('s-label').textContent = type==='package' ? 'Package' : 'Service';
-    document.getElementById('s-title').textContent = item.title||item.name;
-    document.getElementById('s-price').textContent = item.price||'';
-    document.getElementById('s-desc').textContent = item.description||'';
-    document.getElementById('s-about-title').textContent = item.title||item.name;
-    document.getElementById('s-about-desc').textContent = item.description||'';
-    document.getElementById('s-price-detail').textContent = item.priceDetail||'';
-    document.getElementById('s-gallery-title').textContent = (item.title||item.name) + ' Gallery';
+    if(!item){ document.getElementById('loading').textContent = 'Not found'; return; }
 
-    // Build photos array
-    const photos = [];
-    if(item.image) photos.push(item.image);
-    if(item.gallery?.length) photos.push(...item.gallery);
+    // Title
+    const name = item.title || item.name;
+    document.title = name + ' | GlowUp Rentals';
+    document.getElementById('s-title').textContent = name;
+    document.getElementById('s-about-title').textContent = name;
+    document.getElementById('s-desc').textContent = item.description || '';
+    document.getElementById('s-price-detail').textContent = item.priceDetail || (item.includes ? item.includes.join(' · ') : '');
 
-    if(photos.length){
-      document.getElementById('gallery-section').style.display='block';
-      const slidesEl = document.getElementById('slides');
-      const thumbsEl = document.getElementById('thumbs');
-      const prevBtn = slidesEl.querySelector('.slide-prev');
-
-      photos.forEach((url,i)=>{
-        const img = document.createElement('img');
-        img.src=url; img.alt='Photo '+(i+1);
-        if(i===0) img.classList.add('active');
-        slidesEl.insertBefore(img, prevBtn);
-
-        const t = document.createElement('img');
-        t.src=url; t.alt=''; if(i===0) t.classList.add('active');
-        t.onclick=()=>goTo(i);
-        thumbsEl.appendChild(t);
-      });
-
-      totalSlides = photos.length;
-      updateCount();
-      if(photos.length>1) setInterval(()=>goTo(currentSlide+1), 5000);
+    // Prices
+    const pricesEl = document.getElementById('s-prices');
+    if(item.price) {
+      pricesEl.innerHTML = `<span class="svc-price-tag">${item.price}</span>`;
+      if(item.priceDetail) pricesEl.innerHTML += `<span class="svc-price-tag">${item.priceDetail}</span>`;
     }
 
-    if(item.video){
-      document.getElementById('video-section').style.display='block';
-      document.getElementById('s-video').src=item.video;
+    // Main image
+    if(item.image) {
+      document.getElementById('s-main-img').src = item.image;
     }
 
-    document.getElementById('loading').style.display='none';
-    document.getElementById('page-content').style.display='block';
-  } catch(e){
-    document.getElementById('loading').textContent='Error loading page.';
+    // Build gallery array
+    galleryPhotos = [];
+    if(item.gallery && item.gallery.length) {
+      galleryPhotos = [...item.gallery];
+    }
+
+    if(galleryPhotos.length) {
+      document.getElementById('gallery-section').style.display = 'block';
+      document.getElementById('s-gallery-title').textContent = name + ' — Photos';
+      const grid = document.getElementById('photo-grid');
+      grid.innerHTML = galleryPhotos.map((url, i) => `
+        <img src="${url}" alt="Photo ${i+1}" loading="lazy" onclick="openLightbox(${i})">
+      `).join('');
+    }
+
+    // Video
+    if(item.video) {
+      document.getElementById('video-section').style.display = 'block';
+      document.getElementById('s-video').src = item.video;
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('page-content').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Error loading. Please refresh.';
   }
 }
 
-function updateCount(){ document.getElementById('slide-count').textContent=(currentSlide+1)+' / '+totalSlides; }
-function goTo(n){
-  const imgs=[...document.querySelectorAll('#slides img')];
-  const thumbs=[...document.querySelectorAll('#thumbs img')];
-  imgs[currentSlide]?.classList.remove('active');
-  thumbs[currentSlide]?.classList.remove('active');
-  currentSlide=(n+totalSlides)%totalSlides;
-  imgs[currentSlide]?.classList.add('active');
-  thumbs[currentSlide]?.classList.add('active');
-  updateCount();
+// Lightbox
+function openLightbox(i){
+  lbIndex = i;
+  document.getElementById('lb-img').src = galleryPhotos[i];
+  document.getElementById('lightbox').classList.add('open');
 }
-function slidePrev(){goTo(currentSlide-1)}
-function slideNext(){goTo(currentSlide+1)}
+function closeLightbox(e){
+  if(!e || e.target === document.getElementById('lightbox') || e.target.classList.contains('lb-close')){
+    document.getElementById('lightbox').classList.remove('open');
+  }
+}
+function lbPrev(e){ e.stopPropagation(); lbIndex = (lbIndex - 1 + galleryPhotos.length) % galleryPhotos.length; document.getElementById('lb-img').src = galleryPhotos[lbIndex]; }
+function lbNext(e){ e.stopPropagation(); lbIndex = (lbIndex + 1) % galleryPhotos.length; document.getElementById('lb-img').src = galleryPhotos[lbIndex]; }
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') document.getElementById('lightbox').classList.remove('open');
+  if(e.key === 'ArrowLeft') lbPrev({stopPropagation:()=>{}});
+  if(e.key === 'ArrowRight') lbNext({stopPropagation:()=>{}});
+});
 
 document.getElementById('hamburger').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('open'));
 function closeMobile(){document.getElementById('mobile-menu').classList.remove('open')}
