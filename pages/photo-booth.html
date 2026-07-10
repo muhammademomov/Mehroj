@@ -27,6 +27,24 @@
     .addon-box h3{color:var(--rose);margin-bottom:8px}
     @media(max-width:768px){.two-col{grid-template-columns:1fr}}
   </style>
+  <style>
+  .service-gallery{max-width:1100px;margin:0 auto;padding:0 2rem 3rem}
+  .gallery-slides{position:relative;border-radius:16px;overflow:hidden;background:#111}
+  .gallery-slides img{width:100%;height:480px;object-fit:cover;display:none}
+  .gallery-slides img.active{display:block}
+  .slide-btn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.92);border:none;cursor:pointer;width:44px;height:44px;border-radius:50%;font-size:20px;display:flex;align-items:center;justify-content:center;z-index:10;transition:all .2s}
+  .slide-btn:hover{background:white;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+  .slide-prev{left:12px}.slide-next{right:12px}
+  .slide-count{position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,0.5);color:white;font-size:12px;padding:4px 12px;border-radius:20px}
+  .gallery-thumbs{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+  .gallery-thumbs img{width:80px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:0.55;transition:opacity .2s;flex-shrink:0}
+  .gallery-thumbs img.active{opacity:1;outline:2.5px solid #C8536A}
+  .video-section{max-width:1100px;margin:0 auto;padding:0 2rem 3rem}
+  .video-section h2{font-family:'Playfair Display',serif;font-size:1.6rem;margin-bottom:1rem}
+  .video-wrap{position:relative;padding-bottom:56.25%;height:0;border-radius:16px;overflow:hidden}
+  .video-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}
+  @media(max-width:768px){.gallery-slides img{height:260px}}
+  </style>
 </head>
 <body>
 <nav id="main-nav">
@@ -99,20 +117,37 @@
     <h2 class="section-title">Custom Photo Layouts</h2>
     <p class="section-sub" style="margin:0 auto 0">We offer fully customized layouts at no additional cost — choose any text, color, or design.</p>
   </div>
-    <div class="gallery-grid">
-    <img src="https://static.wixstatic.com/media/3974b0_346bf7b9ac5d49ccb65ebfa5ddd446d9~mv2.jpg/v1/fill/w_500,h_430,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_edited.jpg" alt="Photo Booth">
-    <img src="https://static.wixstatic.com/media/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png/v1/fit/w_500,h_640,q_90/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png" alt="Photo layout">
-    <img src="https://static.wixstatic.com/media/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png/v1/fit/w_500,h_640,q_90/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png" alt="Photo layout">
-    <img src="https://static.wixstatic.com/media/3974b0_e1aee1bfba3e4c7e81df6a39c8270c6c~mv2.jpg/v1/fit/w_500,h_400,q_90/3974b0_e1aee1bfba3e4c7e81df6a39c8270c6c~mv2.jpg" alt="Photo layout">
-    <img src="https://static.wixstatic.com/media/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg/v1/fit/w_500,h_380,q_90/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg" alt="Photo layout">
-    <img src="https://static.wixstatic.com/media/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg/v1/fit/w_500,h_700,q_90/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg" alt="Photo layout">
-    <img src="https://static.wixstatic.com/media/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg/v1/fit/w_500,h_700,q_90/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg" alt="Photo layout">
-    <img src="https://static.wixstatic.com/media/3974b0_cd0f17fa632440d9b56941759d917d62~mv2.jpg/v1/fill/w_500,h_500,al_c,q_80/IMG_0517_edited_edited_edited_edited_edi.jpg" alt="Photo booth setup">
-    <img src="https://static.wixstatic.com/media/3974b0_16a8513f877b462ea85f9d5e6ae76d93~mv2.jpg/v1/fill/w_500,h_500,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_JPG.jpg" alt="Photo booth event">
-    <img src="https://static.wixstatic.com/media/3974b0_e6e6433d6de94a45af45c71395900c33~mv2.jpg/v1/fill/w_500,h_380,al_c,q_80/0EB1DE65-95EA-490E-9995-F6AF483F0C52_JPG.jpg" alt="Photo booth night">
-    <img src="https://static.wixstatic.com/media/3974b0_9e6c604a867a43cba16a09be155a9fc5~mv2.jpg/v1/fill/w_500,h_500,al_c,q_80/Red%20Flowerwall%20Backdrop%20Party%20Decor_edited.jpg" alt="Photo booth party">
-    <img src="https://static.wixstatic.com/media/3974b0_7ed3910748b84745bca724900a3dc689~mv2.jpg/v1/fill/w_500,h_500,al_c,q_80/IMG_8269_edited.jpg" alt="Photo booth wedding">
+    
+  <div class="service-gallery">
+    <div class="section-head" style="margin-bottom:1.5rem">
+      <div class="section-label">Gallery</div>
+      <h2 class="section-title">Photo Booth in Action</h2>
+    </div>
+    <div class="gallery-slides">
+      <img src="https://static.wixstatic.com/media/3974b0_346bf7b9ac5d49ccb65ebfa5ddd446d9~mv2.jpg/v1/fill/w_800,h_600,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_edited.jpg" alt="Photo Booth" class="active">
+      <img src="https://static.wixstatic.com/media/3974b0_cd0f17fa632440d9b56941759d917d62~mv2.jpg/v1/fill/w_800,h_800,al_c,q_80/IMG_0517_edited_edited_edited_edited_edi.jpg" alt="Photo Booth setup">
+      <img src="https://static.wixstatic.com/media/3974b0_16a8513f877b462ea85f9d5e6ae76d93~mv2.jpg/v1/fill/w_800,h_800,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_JPG.jpg" alt="Photo Booth event">
+      <img src="https://static.wixstatic.com/media/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png/v1/fit/w_800,h_1000,q_90/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png" alt="Photo strip">
+      <img src="https://static.wixstatic.com/media/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png/v1/fit/w_800,h_1000,q_90/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png" alt="Photo strip">
+      <img src="https://static.wixstatic.com/media/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg/v1/fit/w_800,h_1200,q_90/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg" alt="Photo strip">
+      <img src="https://static.wixstatic.com/media/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg/v1/fit/w_800,h_1200,q_90/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg" alt="Photo strip">
+      <img src="https://static.wixstatic.com/media/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg/v1/fit/w_800,h_600,q_90/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg" alt="Photo strip">
+      <button class="slide-btn slide-prev" onclick="slidePrev()">‹</button>
+      <button class="slide-btn slide-next" onclick="slideNext()">›</button>
+      <div class="slide-count" id="slide-count">1 / 8</div>
+    </div>
+    <div class="gallery-thumbs">
+      <img src="https://static.wixstatic.com/media/3974b0_346bf7b9ac5d49ccb65ebfa5ddd446d9~mv2.jpg/v1/fill/w_160,h_120,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_edited.jpg" class="active" onclick="goToSlide(0)">
+      <img src="https://static.wixstatic.com/media/3974b0_cd0f17fa632440d9b56941759d917d62~mv2.jpg/v1/fill/w_160,h_120,al_c,q_80/IMG_0517_edited_edited_edited_edited_edi.jpg" onclick="goToSlide(1)">
+      <img src="https://static.wixstatic.com/media/3974b0_16a8513f877b462ea85f9d5e6ae76d93~mv2.jpg/v1/fill/w_160,h_120,al_c,q_80/59BD76F5-A886-42EC-A94B-848201CD7C5A_JPG.jpg" onclick="goToSlide(2)">
+      <img src="https://static.wixstatic.com/media/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png/v1/fit/w_160,h_120,q_90/3974b0_bab8b9b67e5348eb80aa5dc3b462bdd8~mv2.png" onclick="goToSlide(3)">
+      <img src="https://static.wixstatic.com/media/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png/v1/fit/w_160,h_120,q_90/3974b0_7708a74b74ee443c822174ed485b0610~mv2.png" onclick="goToSlide(4)">
+      <img src="https://static.wixstatic.com/media/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg/v1/fit/w_160,h_120,q_90/3974b0_ed5f6d4716b0497c93b2dab72c07ae9a~mv2.jpg" onclick="goToSlide(5)">
+      <img src="https://static.wixstatic.com/media/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg/v1/fit/w_160,h_120,q_90/3974b0_bbf1dd819b6948bebed9e86faae5dfce~mv2.jpg" onclick="goToSlide(6)">
+      <img src="https://static.wixstatic.com/media/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg/v1/fit/w_160,h_120,q_90/3974b0_543fff37e75644d5ac2ff30b2e1a567b~mv2.jpg" onclick="goToSlide(7)">
+    </div>
   </div>
+
 </div>
 
 <footer>
@@ -144,6 +179,29 @@
 document.getElementById('hamburger').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('open'));
 function closeMobile(){document.getElementById('mobile-menu').classList.remove('open')}
 window.addEventListener('scroll',()=>document.getElementById('main-nav').classList.toggle('scrolled',window.scrollY>20));
+</script>
+<script>
+function initGallery(){
+  const imgs=[...document.querySelectorAll('.gallery-slides img')];
+  const thumbs=[...document.querySelectorAll('.gallery-thumbs img')];
+  const cnt=document.getElementById('slide-count');
+  let cur=0;
+  if(!imgs.length) return;
+  function goTo(n){
+    imgs[cur].classList.remove('active');
+    if(thumbs[cur]) thumbs[cur].classList.remove('active');
+    cur=(n+imgs.length)%imgs.length;
+    imgs[cur].classList.add('active');
+    if(thumbs[cur]) thumbs[cur].classList.add('active');
+    if(cnt) cnt.textContent=(cur+1)+' / '+imgs.length;
+  }
+  window.slidePrev=()=>goTo(cur-1);
+  window.slideNext=()=>goTo(cur+1);
+  window.goToSlide=(n)=>goTo(n);
+  if(imgs.length>1) setInterval(()=>goTo(cur+1),4000);
+  if(cnt) cnt.textContent='1 / '+imgs.length;
+}
+document.addEventListener('DOMContentLoaded',initGallery);
 </script>
 </body>
 </html>
