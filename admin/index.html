@@ -160,7 +160,7 @@
     <div class="topbar-actions">
       <span class="saved-msg" id="saved-msg">✓ Saved!</span>
       <button class="tbtn tbtn-prev" onclick="window.open('../index.html','_blank')">View Site ↗</button>
-      <button class="tbtn tbtn-save" onclick="saveAll()">Save All Changes</button>
+      
       <button class="tbtn tbtn-out" onclick="logout()">Sign Out</button>
     </div>
   </div>
@@ -238,7 +238,7 @@
             <div class="tab-sub">Site name, phone number, social links</div>
           </div>
         </div>
-        <div class="branding-box">
+        <div class="branding-box" onchange="autoSaveBranding()">
           <div class="form-grid">
             <div class="fg"><label>Business Name</label><input id="b-name"></div>
             <div class="fg"><label>Tagline</label><input id="b-tagline"></div>
@@ -503,7 +503,7 @@ function closeModal(){
   document.getElementById('modal-bg').classList.remove('open');
 }
 
-function confirmModal(){
+async function confirmModal(){
   const item = readForm(CM.type);
   if(!item) return;
   const col = getCollection(CM.type);
@@ -516,6 +516,7 @@ function confirmModal(){
   }
   renderAll();
   closeModal();
+  await autoSave();
 }
 
 function getCollection(type){
@@ -838,6 +839,43 @@ function readForm(type){
 document.getElementById('modal-bg').addEventListener('click',function(e){
   if(e.target===this) closeModal();
 });
+
+// ===== AUTO SAVE =====
+async function autoSave(){
+  const m = document.getElementById('saved-msg');
+  m.textContent = '⏳ Saving...';
+  m.style.display = 'inline';
+  try {
+    const res = await fetch(API_URL + '/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify(D)
+    });
+    const result = await res.json();
+    if(result.success){
+      m.textContent = '✓ Saved!';
+      setTimeout(()=>m.style.display='none', 2000);
+    }
+  } catch(e){
+    m.textContent = '✗ Error';
+    setTimeout(()=>m.style.display='none', 2000);
+  }
+}
+
+let brandingTimer = null;
+function autoSaveBranding(){
+  // Save branding fields to D
+  D.name = document.getElementById('b-name').value;
+  D.tagline = document.getElementById('b-tagline').value;
+  D.phone = document.getElementById('b-phone').value;
+  D.email = document.getElementById('b-email').value;
+  D.address = document.getElementById('b-address').value;
+  D.instagram = document.getElementById('b-insta').value;
+  D.areas = document.getElementById('b-areas').value;
+  // Debounce - wait 1.5s after last keystroke
+  clearTimeout(brandingTimer);
+  brandingTimer = setTimeout(autoSave, 1500);
+}
 </script>
 </body>
 </html>
