@@ -538,28 +538,34 @@ function buildForm(type, item){
         ${imgUploadField(item?.image,'main')}
       </div>
       <div class="fg full">
-        <label>Gallery Photos (${(item?.gallery||[]).length} photos)</label>
-        <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center;cursor:pointer" onclick="uploadMultiplePhotos('f-gallery')">
-          <div style="font-size:2.5rem;margin-bottom:6px">🖼</div>
-          <div style="font-size:14px;font-weight:600;color:var(--rose)">Click to upload gallery photos</div>
-          <div style="font-size:12px;color:var(--gray);margin-top:4px">You can select multiple photos at once</div>
+        <label>Gallery Photos (${(item?.gallery||[]).length} photos uploaded)</label>
+        <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center">
+          <div style="font-size:2rem;margin-bottom:6px">🖼</div>
+          <button type="button" onclick="uploadMultiplePhotos('f-gallery')"
+            style="padding:10px 22px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b)">
+            📷 Upload Gallery Photos
+          </button>
+          <div style="font-size:12px;color:var(--gray);margin-top:6px">Select multiple photos at once</div>
           <div id="gallery-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
-        ${(item?.gallery||[]).length > 0 ? `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-            ${(item?.gallery||[]).map((url,i)=>`<img src="${url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
-          </div>` : ''}
+        <div id="gallery-thumbs-wrap" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          ${(item?.gallery||[]).map(url=>`<img src="${url}" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
+        </div>
         <textarea id="f-gallery" style="display:none">${(item?.gallery||[]).join('\n')}</textarea>
       </div>
       <div class="fg full">
         <label>Video</label>
-        <div style="border:2px dashed var(--gray-l);border-radius:12px;padding:1.5rem;background:var(--off);text-align:center;cursor:pointer" onclick="uploadVideo('f-video')">
-          ${item?.video 
-            ? `<video src="${item.video}" style="width:100%;max-height:180px;border-radius:8px;margin-bottom:8px" controls></video>
-               <div style="font-size:13px;font-weight:600;color:var(--gray)">Click to change video</div>`
-            : `<div style="font-size:2.5rem;margin-bottom:6px">🎬</div>
-               <div style="font-size:14px;font-weight:600;color:var(--dark)">Click to upload video</div>
-               <div style="font-size:12px;color:var(--gray);margin-top:4px">MP4, MOV supported</div>`}
+        <div style="border:2px dashed var(--gray-l);border-radius:12px;padding:1.5rem;background:var(--off);text-align:center">
+          <div id="video-preview-wrap">
+            ${item?.video 
+              ? `<video src="${item.video}" style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block" controls></video>`
+              : `<div style="font-size:2.5rem;margin-bottom:6px">🎬</div>`}
+          </div>
+          <button type="button" onclick="uploadVideo('f-video','video-preview-wrap')"
+            style="padding:10px 22px;background:#1a1118;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b)">
+            🎬 ${item?.video ? 'Change Video' : 'Upload Video'}
+          </button>
+          <div style="font-size:12px;color:var(--gray);margin-top:6px">MP4, MOV supported</div>
           <div id="video-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
         <input id="f-video" type="hidden" value="${item?.video||''}">
@@ -594,28 +600,34 @@ function buildForm(type, item){
         ${imgUploadField(item?.image,'main')}
       </div>
       <div class="fg full">
-        <label>Gallery Photos (${(item?.gallery||[]).length} photos)</label>
-        <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center;cursor:pointer" onclick="uploadMultiplePhotos('f-gallery')">
-          <div style="font-size:2.5rem;margin-bottom:6px">🖼</div>
-          <div style="font-size:14px;font-weight:600;color:var(--rose)">Click to upload gallery photos</div>
-          <div style="font-size:12px;color:var(--gray);margin-top:4px">You can select multiple photos at once</div>
+        <label>Gallery Photos (${(item?.gallery||[]).length} photos uploaded)</label>
+        <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center">
+          <div style="font-size:2rem;margin-bottom:6px">🖼</div>
+          <button type="button" onclick="uploadMultiplePhotos('f-gallery')"
+            style="padding:10px 22px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b)">
+            📷 Upload Gallery Photos
+          </button>
+          <div style="font-size:12px;color:var(--gray);margin-top:6px">Select multiple photos at once</div>
           <div id="gallery-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
-        ${(item?.gallery||[]).length > 0 ? `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-            ${(item?.gallery||[]).map((url,i)=>`<img src="${url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
-          </div>` : ''}
+        <div id="gallery-thumbs-wrap" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          ${(item?.gallery||[]).map(url=>`<img src="${url}" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
+        </div>
         <textarea id="f-gallery" style="display:none">${(item?.gallery||[]).join('\n')}</textarea>
       </div>
       <div class="fg full">
         <label>Video</label>
-        <div style="border:2px dashed var(--gray-l);border-radius:12px;padding:1.5rem;background:var(--off);text-align:center;cursor:pointer" onclick="uploadVideo('f-video')">
-          ${item?.video 
-            ? `<video src="${item.video}" style="width:100%;max-height:180px;border-radius:8px;margin-bottom:8px" controls></video>
-               <div style="font-size:13px;font-weight:600;color:var(--gray)">Click to change video</div>`
-            : `<div style="font-size:2.5rem;margin-bottom:6px">🎬</div>
-               <div style="font-size:14px;font-weight:600;color:var(--dark)">Click to upload video</div>
-               <div style="font-size:12px;color:var(--gray);margin-top:4px">MP4, MOV supported</div>`}
+        <div style="border:2px dashed var(--gray-l);border-radius:12px;padding:1.5rem;background:var(--off);text-align:center">
+          <div id="video-preview-wrap">
+            ${item?.video 
+              ? `<video src="${item.video}" style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block" controls></video>`
+              : `<div style="font-size:2.5rem;margin-bottom:6px">🎬</div>`}
+          </div>
+          <button type="button" onclick="uploadVideo('f-video','video-preview-wrap')"
+            style="padding:10px 22px;background:#1a1118;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b)">
+            🎬 ${item?.video ? 'Change Video' : 'Upload Video'}
+          </button>
+          <div style="font-size:12px;color:var(--gray);margin-top:6px">MP4, MOV supported</div>
           <div id="video-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
         <input id="f-video" type="hidden" value="${item?.video||''}">
@@ -646,17 +658,22 @@ const UPLOAD_PRESET = 'glowup_upload';
 
 function imgUploadField(currentImg, fieldId='main'){
   return `
-    <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center;cursor:pointer" onclick="uploadToCloudinary('image','f-img-url-${fieldId}','img-preview-${fieldId}','upload-progress-${fieldId}','progress-bar-${fieldId}','progress-text-${fieldId}')">
-      ${currentImg 
-        ? `<img src="${currentImg}" id="img-preview-${fieldId}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:12px">`
-        : `<div id="img-preview-${fieldId}" style="font-size:3rem;margin-bottom:8px">📷</div>`}
+    <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center">
+      <div id="img-preview-wrap-${fieldId}">
+        ${currentImg 
+          ? `<img src="${currentImg}" id="img-preview-${fieldId}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:12px;display:block">`
+          : `<div style="font-size:3rem;margin-bottom:8px">📷</div>`}
+      </div>
       <div id="upload-progress-${fieldId}" style="display:none;margin-bottom:8px">
         <div style="background:var(--rose-light);border-radius:20px;height:6px;overflow:hidden">
           <div id="progress-bar-${fieldId}" style="background:var(--rose);height:100%;width:0%;transition:width 0.3s"></div>
         </div>
         <div id="progress-text-${fieldId}" style="font-size:13px;color:var(--rose);font-weight:600;margin-top:6px">Uploading...</div>
       </div>
-      <div style="font-size:14px;font-weight:600;color:var(--rose)">${currentImg ? 'Click to change photo' : 'Click to upload photo'}</div>
+      <button type="button" onclick="uploadToCloudinary('image','f-img-url-${fieldId}','img-preview-wrap-${fieldId}','upload-progress-${fieldId}','progress-bar-${fieldId}','progress-text-${fieldId}')"
+        style="padding:10px 22px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b)">
+        📷 ${currentImg ? 'Change Photo' : 'Upload Photo'}
+      </button>
       <input type="hidden" id="f-img-url-${fieldId}" value="${currentImg||''}">
     </div>`;
 }
@@ -687,19 +704,21 @@ async function uploadToCloudinary(type, urlFieldId, previewId, progressId, barId
         if(e.lengthComputable){
           const pct = Math.round(e.loaded/e.total*100);
           document.getElementById(barId).style.width=pct+'%';
-          document.getElementById(textId).textContent=pct+'% uploaded';
+          document.getElementById(textId).textContent=pct+'% uploaded...';
         }
       };
       xhr.onload = () => {
         const result = JSON.parse(xhr.responseText);
         if(result.secure_url){
           document.getElementById(urlFieldId).value = result.secure_url;
-          const prev = document.getElementById(previewId);
-          prev.src = result.secure_url;
-          prev.style.display = 'block';
-          document.getElementById(textId).textContent='✓ Uploaded!';
+          // Show preview image
+          const wrap = document.getElementById(previewId);
+          wrap.innerHTML = `<img src="${result.secure_url}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:12px;display:block">`;
+          document.getElementById(textId).textContent='✓ Photo uploaded!';
           document.getElementById(barId).style.width='100%';
           setTimeout(()=>document.getElementById(progressId).style.display='none', 2000);
+        } else {
+          document.getElementById(textId).textContent='Upload failed. Try again.';
         }
       };
       xhr.open('POST', url);
@@ -728,6 +747,8 @@ async function uploadMultiplePhotos(galleryFieldId){
     let uploaded = 0;
     const urls = textarea.value ? textarea.value.split('\n').filter(Boolean) : [];
 
+    const thumbsWrap = document.getElementById('gallery-thumbs-wrap');
+
     for(const file of files){
       const formData = new FormData();
       formData.append('file', file);
@@ -741,15 +762,22 @@ async function uploadMultiplePhotos(galleryFieldId){
         uploaded++;
         status.textContent = uploaded+' / '+files.length+' uploaded...';
         textarea.value = urls.join('\n');
+        // Show thumbnail immediately
+        if(thumbsWrap){
+          const img = document.createElement('img');
+          img.src = result.secure_url;
+          img.style = 'width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)';
+          thumbsWrap.appendChild(img);
+        }
       }
     }
     status.textContent = '✓ All '+files.length+' photos uploaded!';
-    setTimeout(()=>status.style.display='none', 3000);
+    setTimeout(()=>{ status.style.display='none'; }, 3000);
   };
   input.click();
 }
 
-async function uploadVideo(videoFieldId){
+async function uploadVideo(videoFieldId, previewWrapId){
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'video/*';
@@ -757,7 +785,7 @@ async function uploadVideo(videoFieldId){
     const file = e.target.files[0];
     if(!file) return;
     const status = document.getElementById('video-upload-status');
-    status.textContent = '⏳ Uploading video... (may take a minute)';
+    status.textContent = '⏳ Uploading video... this may take a minute';
     status.style.display='block';
     
     const formData = new FormData();
@@ -770,15 +798,15 @@ async function uploadVideo(videoFieldId){
     const result = await res.json();
     if(result.secure_url){
       document.getElementById(videoFieldId).value = result.secure_url;
-      status.textContent = '✓ Video uploaded successfully!';
       // Show video preview
-      const container = status.closest('div');
-      const video = document.createElement('video');
-      video.src = result.secure_url;
-      video.controls = true;
-      video.style = 'width:100%;max-height:180px;border-radius:8px;margin-bottom:8px';
-      container.insertBefore(video, container.firstChild);
-      setTimeout(()=>status.style.display='none', 3000);
+      const wrap = document.getElementById(previewWrapId);
+      if(wrap){
+        wrap.innerHTML = `<video src="${result.secure_url}" controls style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block"></video>`;
+      }
+      status.textContent = '✓ Video uploaded!';
+      setTimeout(()=>status.style.display='none', 2500);
+    } else {
+      status.textContent = '✗ Upload failed. Try again.';
     }
   };
   input.click();
