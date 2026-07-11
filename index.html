@@ -150,65 +150,45 @@
   <div class="contact-wrap">
     <div id="form-container">
       <div class="contact-grid" id="contact-form">
-        <div class="form-group">
-          <label>First Name *</label>
-          <input type="text" placeholder="Jane" required>
+        <div class="form-group"><label>First Name *</label><input type="text" placeholder="Jane" required></div>
+        <div class="form-group"><label>Last Name *</label><input type="text" placeholder="Smith" required></div>
+        <div class="form-group"><label>Email *</label><input type="email" placeholder="jane@email.com" required></div>
+        <div class="form-group"><label>Phone</label><input type="tel" placeholder="(555) 000-0000"></div>
+        <div class="form-group full"><label>Event Type</label>
+          <select><option value="">Select event type...</option><option>Wedding</option><option>Birthday Party</option><option>Proposal</option><option>Corporate Event</option><option>Baby Shower</option><option>Quinceañera</option><option>Sweet 16</option><option>Other</option></select>
         </div>
-        <div class="form-group">
-          <label>Last Name *</label>
-          <input type="text" placeholder="Smith" required>
-        </div>
-        <div class="form-group">
-          <label>Email *</label>
-          <input type="email" placeholder="jane@email.com" required>
-        </div>
-        <div class="form-group">
-          <label>Phone</label>
-          <input type="tel" placeholder="(555) 000-0000">
+        <div class="form-group"><label>Event Date</label><input type="date"></div>
+        <div class="form-group"><label>Event Address / Venue</label><input type="text" placeholder="Washington DC"></div>
+        <div class="form-group full"><label>Event Setup & End Time</label><input type="text" placeholder="e.g. Setup 4pm · Start 6pm · End 10pm"></div>
+        <div class="form-group full">
+          <label>Indoor or Outdoor?</label>
+          <div style="display:flex;gap:2rem;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="radio" name="location_type" value="Indoor" style="accent-color:var(--rose);width:16px;height:16px"> Indoor</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="radio" name="location_type" value="Outdoor" style="accent-color:var(--rose);width:16px;height:16px"> Outdoor</label>
+          </div>
         </div>
         <div class="form-group full">
-          <label>Event Type</label>
-          <select>
-            <option value="">Select event type...</option>
-            <option>Wedding</option>
-            <option>Birthday Party</option>
-            <option>Proposal</option>
-            <option>Corporate Event</option>
-            <option>Baby Shower</option>
-            <option>Quinceañera</option>
-            <option>Other</option>
-          </select>
+          <label>Rental Items Needed</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px" id="services-checkboxes">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Photo Booth" style="accent-color:var(--rose);width:16px;height:16px"> Photo Booth</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="3ft Marquee Letters / 4ft Numbers" style="accent-color:var(--rose);width:16px;height:16px"> 3ft Letters / 4ft Numbers</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Flower / Greenery Backdrop" style="accent-color:var(--rose);width:16px;height:16px"> Flower / Greenery Backdrop</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Floral Arch" style="accent-color:var(--rose);width:16px;height:16px"> Floral Arch</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Custom Balloon Decor" style="accent-color:var(--rose);width:16px;height:16px"> Custom Balloon Decor</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Package A: Backdrop + Neon + Photo Booth" style="accent-color:var(--rose);width:16px;height:16px"> Package A: Backdrop + Neon + Booth</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Package B: Balloon Columns + Marquee Letters" style="accent-color:var(--rose);width:16px;height:16px"> Package B: Balloons + Letters</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Package C: Full Event Package" style="accent-color:var(--rose);width:16px;height:16px"> Package C: Full Event</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Party Packages (Birthday, Bachelorette, Baby Shower)" style="accent-color:var(--rose);width:16px;height:16px"> Party Packages</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Wedding / Bridal Package" style="accent-color:var(--rose);width:16px;height:16px"> Wedding / Bridal Package</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Neon Sign" style="accent-color:var(--rose);width:16px;height:16px"> Neon Sign</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" value="Proposal Package" style="accent-color:var(--rose);width:16px;height:16px"> Proposal Package</label>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Event Date</label>
-          <input type="date">
+        <div class="form-group full"><label>How did you hear about us?</label>
+          <select><option value="">Select...</option><option>Google Search</option><option>Instagram</option><option>Facebook</option><option>TikTok</option><option>Friend / Family Referral</option><option>Yelp</option><option>The Knot</option><option>WeddingWire</option><option>Other</option></select>
         </div>
-        <div class="form-group">
-          <label>City / Venue</label>
-          <input type="text" placeholder="Washington DC">
-        </div>
-        <div class="form-group full">
-          <label>Services Interested In</label>
-          <select>
-            <option value="">Select service(s)...</option>
-            <option>Marquee Letters / Numbers</option>
-            <option>Photo Booth</option>
-            <option>Backdrop / Flower Wall</option>
-            <option>Balloon Decorations</option>
-            <option>Full Package</option>
-            <option>Multiple / Custom</option>
-          </select>
-        </div>
-        <div class="form-group full">
-          <label>Message / Additional Details</label>
-          <textarea placeholder="Tell us about your event, specific items you need, or any questions..."></textarea>
-        </div>
-        <div class="form-group full">
-          <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="submitForm(event)">
-            Send Inquiry ✦
-          </button>
-        </div>
-      </div>
+        <div class="form-group full"><label>Tell us about your event</label><textarea placeholder="Any additional details, special requests, questions..." style="min-height:120px"></textarea></div>
+        <div class="form-group full"><button class="btn btn-primary" style="width:100%;justify-content:center" onclick="submitForm(event)">Send Inquiry ✦</button></div></div>
     </div>
     <div class="form-success" id="form-success">
       ✦ Thank you! We'll be in touch within 24 hours.
