@@ -50,7 +50,7 @@ async function connectDB() {
 
     console.log('Tables ready!');
   } catch(e) {
-    console.error('DB Error:', e.message);
+    console.error('DB Error:', e.message, e.code, 'HOST:', process.env.MYSQLHOST, 'USER:', process.env.MYSQLUSER, 'DB:', process.env.MYSQLDATABASE);
   }
 }
 
