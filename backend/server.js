@@ -72,6 +72,56 @@ async function connectDB() {
       console.log('Default data inserted');
     }
 
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id VARCHAR(50) PRIMARY KEY,
+        client_name VARCHAR(200),
+        client_email VARCHAR(200),
+        client_phone VARCHAR(50),
+        event_type VARCHAR(100),
+        event_date DATE,
+        event_address VARCHAR(300),
+        event_time VARCHAR(200),
+        location_type VARCHAR(50),
+        status VARCHAR(50) DEFAULT 'new',
+        notes TEXT,
+        source VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS quotes (
+        id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50) NOT NULL,
+        title VARCHAR(200),
+        status VARCHAR(50) DEFAULT 'draft',
+        subtotal DECIMAL(10,2) DEFAULT 0,
+        discount DECIMAL(10,2) DEFAULT 0,
+        tax DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0,
+        deposit DECIMAL(10,2) DEFAULT 0,
+        notes TEXT,
+        terms TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS quote_items (
+        id VARCHAR(50) PRIMARY KEY,
+        quote_id VARCHAR(50) NOT NULL,
+        inventory_id VARCHAR(50),
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        qty INT DEFAULT 1,
+        price DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0
+      )
+    `);
+
     console.log('Tables ready!');
   } catch(e) {
     console.error('DB Error:', e.message);
@@ -410,6 +460,148 @@ app.delete('/api/booking/:id', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('DELETE FROM bookings WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== PROJECTS =====
+
+app.get('/api/projects', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute('SELECT * FROM projects ORDER BY created_at DESC');
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/projects/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute('SELECT * FROM projects WHERE id=?', [req.params.id]);
+    if(!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/projects', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const id = 'prj_' + Date.now();
+    const { client_name, client_email, client_phone, event_type, event_date, event_address, event_time, location_type, notes, source } = req.body;
+    await db.execute(
+      'INSERT INTO projects (id,client_name,client_email,client_phone,event_type,event_date,event_address,event_time,location_type,notes,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      [id, client_name||'', client_email||'', client_phone||'', event_type||'', event_date||null, event_address||'', event_time||'', location_type||'', notes||'', source||'']
+    );
+    res.json({ success: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/projects/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const fields = ['client_name','client_email','client_phone','event_type','event_date','event_address','event_time','location_type','status','notes','source'];
+    const updates = fields.filter(f => req.body[f] !== undefined);
+    if(!updates.length) return res.json({ success: true });
+    const sql = 'UPDATE projects SET ' + updates.map(f => f+'=?').join(',') + ' WHERE id=?';
+    await db.execute(sql, [...updates.map(f => req.body[f] || null), req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('DELETE FROM quote_items WHERE quote_id IN (SELECT id FROM quotes WHERE project_id=?)', [req.params.id]);
+    await db.execute('DELETE FROM quotes WHERE project_id=?', [req.params.id]);
+    await db.execute('DELETE FROM projects WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== QUOTES =====
+
+app.get('/api/quotes/project/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [quotes] = await db.execute('SELECT * FROM quotes WHERE project_id=? ORDER BY created_at DESC', [req.params.id]);
+    for(const q of quotes){
+      const [items] = await db.execute('SELECT * FROM quote_items WHERE quote_id=?', [q.id]);
+      q.items = items;
+    }
+    res.json(quotes);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Public quote view (no auth needed)
+app.get('/api/quote/:id/public', async (req, res) => {
+  try {
+    const [quotes] = await db.execute('SELECT * FROM quotes WHERE id=?', [req.params.id]);
+    if(!quotes.length) return res.status(404).json({ error: 'Not found' });
+    const q = quotes[0];
+    const [items] = await db.execute('SELECT * FROM quote_items WHERE quote_id=?', [q.id]);
+    q.items = items;
+    const [projects] = await db.execute('SELECT client_name, event_type, event_date, event_address FROM projects WHERE id=?', [q.project_id]);
+    q.project = projects[0] || {};
+    res.json(q);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/quotes', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const id = 'qte_' + Date.now();
+    const { project_id, title, items, discount, tax, deposit, notes, terms } = req.body;
+    // Calculate totals
+    const subtotal = (items||[]).reduce((sum, i) => sum + (parseFloat(i.price)*parseInt(i.qty)), 0);
+    const discountAmt = parseFloat(discount)||0;
+    const taxAmt = parseFloat(tax)||0;
+    const total = subtotal - discountAmt + taxAmt;
+    await db.execute(
+      'INSERT INTO quotes (id,project_id,title,subtotal,discount,tax,total,deposit,notes,terms) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [id, project_id, title||'Quote', subtotal, discountAmt, taxAmt, total, parseFloat(deposit)||0, notes||'', terms||'']
+    );
+    // Add items
+    for(const item of (items||[])){
+      const iid = 'qi_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+      const itotal = parseFloat(item.price) * parseInt(item.qty);
+      await db.execute(
+        'INSERT INTO quote_items (id,quote_id,inventory_id,name,description,qty,price,total) VALUES (?,?,?,?,?,?,?,?)',
+        [iid, id, item.inventory_id||null, item.name, item.description||'', parseInt(item.qty)||1, parseFloat(item.price)||0, itotal]
+      );
+    }
+    res.json({ success: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/quotes/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { status, items, discount, tax, deposit, notes, terms, title } = req.body;
+    if(items !== undefined){
+      await db.execute('DELETE FROM quote_items WHERE quote_id=?', [req.params.id]);
+      const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price)*parseInt(i.qty)), 0);
+      const discountAmt = parseFloat(discount)||0;
+      const taxAmt = parseFloat(tax)||0;
+      const total = subtotal - discountAmt + taxAmt;
+      await db.execute('UPDATE quotes SET subtotal=?,discount=?,tax=?,total=?,deposit=?,notes=?,terms=?,title=? WHERE id=?',
+        [subtotal, discountAmt, taxAmt, total, parseFloat(deposit)||0, notes||'', terms||'', title||'Quote', req.params.id]);
+      for(const item of items){
+        const iid = 'qi_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+        const itotal = parseFloat(item.price) * parseInt(item.qty);
+        await db.execute('INSERT INTO quote_items (id,quote_id,inventory_id,name,description,qty,price,total) VALUES (?,?,?,?,?,?,?,?)',
+          [iid, req.params.id, item.inventory_id||null, item.name, item.description||'', parseInt(item.qty)||1, parseFloat(item.price)||0, itotal]);
+      }
+    }
+    if(status) await db.execute('UPDATE quotes SET status=? WHERE id=?', [status, req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/quotes/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('DELETE FROM quote_items WHERE quote_id=?', [req.params.id]);
+    await db.execute('DELETE FROM quotes WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
