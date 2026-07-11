@@ -87,7 +87,30 @@
   <div class="footer-bottom"><span>© 2024 GlowUp Rentals LLC. All rights reserved.</span><span>Alexandria, VA · Serving the DMV & beyond</span></div>
 </footer>
 <script>
-function submitForm(e){e.preventDefault();document.getElementById('form-container').style.display='none';document.getElementById('form-success').style.display='block'}
+async function submitForm(e){
+  e.preventDefault();
+  const btn = e.target;
+  btn.textContent = 'Sending...';
+  btn.disabled = true;
+  const formData = {};
+  document.querySelectorAll('.form-group').forEach(group => {
+    const label = group.querySelector('label');
+    const field = group.querySelector('input, select, textarea');
+    if(label && field && field.value) {
+      formData[label.textContent.replace('*','').trim()] = field.value;
+    }
+  });
+  formData.submittedAt = new Date().toLocaleString();
+  try {
+    await fetch('https://mehroj-production.up.railway.app/api/inquiry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    });
+  } catch(err) { console.log('Error:', err); }
+  document.getElementById('form-container').style.display='none';
+  document.getElementById('form-success').style.display='block';
+}
 document.getElementById('hamburger').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('open'));
 function closeMobile(){document.getElementById('mobile-menu').classList.remove('open')}
 window.addEventListener('scroll',()=>document.getElementById('main-nav').classList.toggle('scrolled',window.scrollY>20));
