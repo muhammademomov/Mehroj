@@ -92,15 +92,28 @@ async function submitForm(e){
   const btn = e.target;
   btn.textContent = 'Sending...';
   btn.disabled = true;
+
   const formData = {};
+
+  // Text inputs and selects
   document.querySelectorAll('.form-group').forEach(group => {
     const label = group.querySelector('label');
-    const field = group.querySelector('input, select, textarea');
+    const field = group.querySelector('input[type=text], input[type=email], input[type=tel], input[type=date], select, textarea');
     if(label && field && field.value) {
       formData[label.textContent.replace('*','').trim()] = field.value;
     }
   });
+
+  // Radio buttons
+  const radio = document.querySelector('input[name="location_type"]:checked');
+  if(radio) formData['Indoor or Outdoor'] = radio.value;
+
+  // Checkboxes
+  const checked = [...document.querySelectorAll('#services-checkboxes input:checked')].map(c => c.value);
+  if(checked.length) formData['Rental Items'] = checked.join(', ');
+
   formData.submittedAt = new Date().toLocaleString();
+
   try {
     await fetch('https://mehroj-production.up.railway.app/api/inquiry', {
       method: 'POST',
@@ -108,6 +121,7 @@ async function submitForm(e){
       body: JSON.stringify(formData)
     });
   } catch(err) { console.log('Error:', err); }
+
   document.getElementById('form-container').style.display='none';
   document.getElementById('form-success').style.display='block';
 }
