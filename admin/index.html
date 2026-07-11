@@ -199,6 +199,24 @@
     .overlay.open { display: block; }
     .empty-state { text-align: center; padding: 4rem 2rem; color: var(--gray); }
     .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+
+    /* INVENTORY */
+    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 14px; }
+    .inv-card { background: white; border-radius: 12px; border: 1.5px solid var(--gray-l); padding: 1.2rem; transition: box-shadow .2s; }
+    .inv-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+    .inv-card-name { font-weight: 700; font-size: 15px; color: var(--dark); margin-bottom: 4px; }
+    .inv-card-cat { font-size: 12px; color: var(--gray); margin-bottom: 12px; }
+    .inv-bar-wrap { background: #f0e8ea; border-radius: 20px; height: 8px; margin-bottom: 6px; overflow: hidden; }
+    .inv-bar { height: 100%; border-radius: 20px; transition: width .3s; }
+    .inv-bar.green { background: #2E7D52; }
+    .inv-bar.yellow { background: #C9A96E; }
+    .inv-bar.red { background: var(--red); }
+    .inv-numbers { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 12px; }
+    .inv-num-item { text-align: center; }
+    .inv-num-item strong { display: block; font-size: 1.2rem; font-family: var(--font-d); }
+    .inv-num-item span { color: var(--gray); }
+    .inv-actions { display: flex; gap: 8px; }
+    .warning-badge { background: #FEF3C7; color: #92400E; border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
     @media(max-width:700px){
       .sidebar{display:none}
       .main{padding:1rem}
@@ -248,6 +266,9 @@
         <span class="sid-label">CRM</span>
         <button class="sid-btn" onclick="showTab('inquiries',this)" id="inq-btn">
           <span class="sid-icon">📋</span> Inquiries <span class="inq-count" id="new-count" style="display:none">0</span>
+        </button>
+        <button class="sid-btn" onclick="showTab('inventory',this)">
+          <span class="sid-icon">📦</span> Inventory
         </button>
       </div>
       <div class="sid-section">
@@ -317,6 +338,21 @@
         </div>
         <div id="inq-list" class="inq-list">
           <div class="empty-state"><div class="empty-icon">📋</div><p>No inquiries yet</p></div>
+        </div>
+      </div>
+
+      <!-- INVENTORY TAB -->
+      <div class="tab" id="tab-inventory">
+        <div class="tab-hdr">
+          <div>
+            <div class="tab-title">Inventory</div>
+            <div class="tab-sub">Track your equipment — letters, backdrops, booths and more</div>
+          </div>
+          <button class="add-btn" onclick="openModal('inventory',null)">+ Add Item</button>
+        </div>
+        <div id="inv-warnings"></div>
+        <div class="inv-grid" id="inv-grid">
+          <div style="color:var(--gray);padding:2rem">Loading inventory...</div>
         </div>
       </div>
 
@@ -585,7 +621,14 @@ function openModal(type, idx){
   CM = {type, idx};
   const isEdit = idx !== null;
   document.getElementById('modal-title').textContent = (isEdit?'Edit ':'Add ') + capitalize(type);
-  const item = isEdit ? getCollection(type)[idx] : null;
+  // For inventory, idx is the item id string, not array index
+  let item = null;
+  if(type === 'inventory' && idx){
+    item = allInventory.find(i => i.id === idx);
+    CM.idx = idx; // keep as string id
+  } else if(isEdit) {
+    item = getCollection(type)[idx];
+  }
   document.getElementById('modal-body').innerHTML = buildForm(type, item);
   document.getElementById('modal-bg').classList.add('open');
 }
@@ -597,6 +640,21 @@ function closeModal(){
 async function confirmModal(){
   const item = readForm(CM.type);
   if(!item) return;
+  // Handle inventory separately
+  if(CM.type === 'inventory'){
+    const name = document.getElementById('f-inv-name').value.trim();
+    const category = document.getElementById('f-inv-cat').value;
+    const total_qty = parseInt(document.getElementById('f-inv-qty').value) || 1;
+    const notes = document.getElementById('f-inv-notes').value.trim();
+    const method = CM.idx ? 'PATCH' : 'POST';
+    const url = CM.idx ? API_URL+'/api/inventory/'+CM.idx : API_URL+'/api/inventory';
+    fetch(url, {
+      method,
+      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify({ name, category, total_qty, notes })
+    }).then(()=>{ loadInventory(); closeModal(); });
+    return;
+  }
   const col = getCollection(CM.type);
   if(CM.idx === null){
     item.id = CM.type + Date.now();
@@ -617,6 +675,22 @@ function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1) }
 
 // ===== FORMS =====
 function buildForm(type, item){
+  if(type==='inventory') return `
+    <div class="form-grid">
+      <div class="fg full"><label>Item Name</label><input id="f-inv-name" value="${item?.name||''}" placeholder="e.g. Letter A, White Flower Wall, Photo Booth"></div>
+      <div class="fg"><label>Category</label>
+        <select id="f-inv-cat">
+          <option value="Letters" ${item?.category==='Letters'?'selected':''}>Letters & Numbers</option>
+          <option value="Backdrops" ${item?.category==='Backdrops'?'selected':''}>Backdrops & Flower Walls</option>
+          <option value="Photo Booth" ${item?.category==='Photo Booth'?'selected':''}>Photo Booth</option>
+          <option value="Balloons" ${item?.category==='Balloons'?'selected':''}>Balloons</option>
+          <option value="Neon" ${item?.category==='Neon'?'selected':''}>Neon Signs</option>
+          <option value="Other" ${item?.category==='Other'?'selected':''}>Other</option>
+        </select>
+      </div>
+      <div class="fg"><label>Total Quantity</label><input type="number" id="f-inv-qty" value="${item?.total_qty||1}" min="1"></div>
+      <div class="fg full"><label>Notes (optional)</label><textarea id="f-inv-notes">${item?.notes||''}</textarea></div>
+    </div>`;
   if(type==='service') return `
     <div class="form-grid">
       <div class="fg full"><label>Service Name</label><input id="f-title" value="${item?.title||''}"></div>
@@ -1093,6 +1167,81 @@ async function saveComment(){
 }
 
 // Load inquiries when tab opened - handled inside showTab below
+
+
+// ===== INVENTORY =====
+let allInventory = [];
+
+async function loadInventory(){
+  try {
+    const res = await fetch(API_URL + '/api/inventory', {
+      headers: { 'x-admin-secret': ADMIN_SECRET }
+    });
+    allInventory = await res.json();
+    renderInventory();
+  } catch(e) {
+    console.log('Failed to load inventory', e);
+  }
+}
+
+function renderInventory(){
+  const grid = document.getElementById('inv-grid');
+  const warnings = document.getElementById('inv-warnings');
+  if(!allInventory.length){
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>No inventory items yet.<br>Add your equipment to start tracking.</p></div>';
+    return;
+  }
+
+  // Show warnings for items that are overbooked
+  const overbooked = allInventory.filter(i => i.available < 0);
+  if(overbooked.length){
+    warnings.innerHTML = overbooked.map(i => `
+      <div class="warning-badge">⚠️ <strong>${i.name}</strong>: Need ${Math.abs(i.available)} more! (Have ${i.total_qty}, Using ${i.in_use})</div>
+    `).join('');
+  } else {
+    warnings.innerHTML = '';
+  }
+
+  grid.innerHTML = allInventory.map(item => {
+    const pct = item.total_qty > 0 ? Math.min(100, Math.round(item.in_use / item.total_qty * 100)) : 0;
+    const barClass = pct >= 100 ? 'red' : pct >= 70 ? 'yellow' : 'green';
+    const availColor = item.available <= 0 ? 'color:var(--red)' : item.available <= 1 ? 'color:#C9A96E' : 'color:#2E7D52';
+    return `
+      <div class="inv-card">
+        <div class="inv-card-name">${item.name}</div>
+        <div class="inv-card-cat">${item.category || 'Uncategorized'}</div>
+        <div class="inv-numbers">
+          <div class="inv-num-item"><strong>${item.total_qty}</strong><span>Total</span></div>
+          <div class="inv-num-item"><strong style="color:var(--rose)">${item.in_use}</strong><span>In Use</span></div>
+          <div class="inv-num-item"><strong style="${availColor}">${item.available}</strong><span>Available</span></div>
+        </div>
+        <div class="inv-bar-wrap"><div class="inv-bar ${barClass}" style="width:${pct}%"></div></div>
+        <div class="inv-actions">
+          <button class="btn-edit" onclick="openModal('inventory','${item.id}')">✏ Edit</button>
+          <button class="btn-del" onclick="deleteInvItem('${item.id}')">🗑 Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteInvItem(id){
+  if(!confirm('Delete this item?')) return;
+  try {
+    await fetch(API_URL + '/api/inventory/' + id, {
+      method: 'DELETE',
+      headers: { 'x-admin-secret': ADMIN_SECRET }
+    });
+    loadInventory();
+  } catch(e) { console.log('Delete failed', e); }
+}
+
+// Add inventory to showTab
+const _origShowTab = showTab;
+showTab = function(name, btn){
+  _origShowTab(name, btn);
+  if(name === 'inventory') loadInventory();
+}
 
 // ===== AUTO SAVE =====
 async function autoSave(){
