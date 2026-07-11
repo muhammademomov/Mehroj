@@ -217,6 +217,23 @@
     .inv-num-item span { color: var(--gray); }
     .inv-actions { display: flex; gap: 8px; }
     .warning-badge { background: #FEF3C7; color: #92400E; border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+    /* BOOKINGS IN PANEL */
+    .booking-item { background: var(--off); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--gray-l); }
+    .booking-item-name { font-weight: 600; font-size: 14px; color: var(--dark); margin-bottom: 4px; }
+    .booking-item-meta { font-size: 12px; color: var(--gray); margin-bottom: 8px; }
+    .booking-status-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .status-pill { padding: 4px 10px; border-radius: 50px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; font-family: var(--font-b); transition: all .2s; }
+    .status-pill.booked { background: #DBEAFE; color: #1E40AF; }
+    .status-pill.issued { background: #FEF3C7; color: #92400E; }
+    .status-pill.returned { background: #D1FAE5; color: #065F46; }
+    .status-pill.cancelled { background: #F3F4F6; color: #6B7280; }
+    .status-pill.active { box-shadow: 0 0 0 2px currentColor; }
+    .btn-del-booking { padding: 4px 8px; background: #FDECEA; color: var(--red); border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .add-booking-form { background: var(--rose-pale); border-radius: 8px; padding: 12px; margin-top: 10px; border: 1px solid var(--rose-light); }
+    .add-booking-form select, .add-booking-form input { width: 100%; padding: 8px 10px; border: 1.5px solid var(--gray-l); border-radius: 7px; font-size: 13px; font-family: var(--font-b); outline: none; margin-bottom: 8px; }
+    .add-booking-form select:focus, .add-booking-form input:focus { border-color: var(--rose); }
+    .btn-add-booking { width: 100%; padding: 9px; background: var(--rose); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font-b); }
     @media(max-width:700px){
       .sidebar{display:none}
       .main{padding:1rem}
@@ -1117,6 +1134,17 @@ function openPanel(id){
     .join('');
   document.getElementById('panel-fields').innerHTML = fieldsHtml;
 
+  // Set event date in booking form if available
+  const eventDate = inq['Event Date'] || '';
+  if(eventDate && document.getElementById('bk-date')){
+    document.getElementById('bk-date').value = eventDate;
+  }
+
+  // Load bookings and inventory
+  loadPanelBookings(id);
+  if(allInventory.length) populateInventorySelect();
+  else loadInventory().then(() => populateInventorySelect());
+
   document.getElementById('side-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
 }
@@ -1241,6 +1269,118 @@ showTab = function(name, btn){
   if(name === 'inventory') loadInventory();
 }
 
+
+// ===== BOOKINGS IN PANEL =====
+let panelBookings = [];
+
+async function loadPanelBookings(inquiryId){
+  try {
+    const res = await fetch(API_URL + '/api/bookings/inquiry/' + inquiryId, {
+      headers: { 'x-admin-secret': ADMIN_SECRET }
+    });
+    panelBookings = await res.json();
+    renderPanelBookings();
+  } catch(e) {
+    document.getElementById('panel-bookings').innerHTML = '<div style="font-size:13px;color:var(--gray)">No items yet</div>';
+  }
+}
+
+function renderPanelBookings(){
+  const el = document.getElementById('panel-bookings');
+  if(!panelBookings.length){
+    el.innerHTML = '<div style="font-size:13px;color:var(--gray);padding:8px 0">No items added yet</div>';
+    return;
+  }
+  const statusColors = { booked:'booked', issued:'issued', returned:'returned', cancelled:'cancelled' };
+  const statusLabels = { booked:'📋 Booked', issued:'🚚 Issued', returned:'✅ Returned', cancelled:'❌ Cancelled' };
+
+  el.innerHTML = panelBookings.map(b => `
+    <div class="booking-item">
+      <div class="booking-item-name">${b.item_name} × ${b.qty_needed}</div>
+      <div class="booking-item-meta">Event: ${b.event_date ? new Date(b.event_date).toLocaleDateString() : 'No date'}</div>
+      <div class="booking-status-row">
+        ${['booked','issued','returned'].map(s => `
+          <button class="status-pill ${s} ${b.status===s?'active':''}"
+            onclick="updateBookingStatus('${b.id}','${s}')">
+            ${statusLabels[s]}
+          </button>
+        `).join('')}
+        <button class="btn-del-booking" onclick="deleteBooking('${b.id}')">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function updateBookingStatus(bookingId, status){
+  try {
+    await fetch(API_URL + '/api/booking/' + bookingId + '/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify({ status })
+    });
+    // Update local
+    const b = panelBookings.find(x => x.id === bookingId);
+    if(b) b.status = status;
+    renderPanelBookings();
+    // Refresh inventory
+    if(document.getElementById('tab-inventory').classList.contains('active')) loadInventory();
+  } catch(e) { console.log('Status update failed', e); }
+}
+
+async function deleteBooking(bookingId){
+  if(!confirm('Remove this item from booking?')) return;
+  try {
+    await fetch(API_URL + '/api/booking/' + bookingId, {
+      method: 'DELETE',
+      headers: { 'x-admin-secret': ADMIN_SECRET }
+    });
+    panelBookings = panelBookings.filter(b => b.id !== bookingId);
+    renderPanelBookings();
+  } catch(e) { console.log('Delete failed', e); }
+}
+
+async function addBookingItem(){
+  const select = document.getElementById('bk-item-select');
+  const qty = parseInt(document.getElementById('bk-qty').value) || 1;
+  const date = document.getElementById('bk-date').value;
+  const itemId = select.value;
+  const itemName = select.options[select.selectedIndex]?.text;
+
+  if(!itemId){ alert('Please select an item'); return; }
+  if(!date){ alert('Please select event date'); return; }
+  if(!currentInqId){ return; }
+
+  try {
+    const res = await fetch(API_URL + '/api/booking', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify({
+        inquiry_id: currentInqId,
+        items: [{ item_id: itemId, item_name: itemName, qty_needed: qty }],
+        event_date: date
+      })
+    });
+    const result = await res.json();
+    if(result.warnings && result.warnings.length){
+      alert('⚠️ Warning: ' + result.warnings.map(w =>
+        `${w.item}: Need ${w.needed}, only ${w.available} available!`
+      ).join('\n'));
+    }
+    // Reset form
+    select.value = '';
+    document.getElementById('bk-qty').value = '1';
+    // Reload bookings
+    loadPanelBookings(currentInqId);
+  } catch(e) { console.log('Add booking failed', e); }
+}
+
+function populateInventorySelect(){
+  const select = document.getElementById('bk-item-select');
+  if(!select || !allInventory.length) return;
+  select.innerHTML = '<option value="">Select inventory item...</option>' +
+    allInventory.map(i => `<option value="${i.id}">${i.name} (${i.available} available)</option>`).join('');
+}
+
 // ===== AUTO SAVE =====
 async function autoSave(){
   const m = document.getElementById('saved-msg');
@@ -1290,7 +1430,7 @@ function autoSaveBranding(){
   </div>
   <div class="panel-body">
     <div class="panel-field">
-      <label>Status</label>
+      <label>Inquiry Status</label>
       <select class="status-select" id="panel-status" onchange="updateStatus()">
         <option value="new">🟡 New</option>
         <option value="waiting">🔵 Waiting for reply</option>
@@ -1301,6 +1441,27 @@ function autoSaveBranding(){
     </div>
     <hr class="panel-divider">
     <div id="panel-fields"></div>
+    <hr class="panel-divider">
+
+    <!-- BOOKINGS SECTION -->
+    <div class="panel-field">
+      <label>Rented Items</label>
+      <div id="panel-bookings">
+        <div style="font-size:13px;color:var(--gray)">Loading...</div>
+      </div>
+
+      <!-- Add new booking -->
+      <div class="add-booking-form" style="margin-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">+ Add Item</div>
+        <select id="bk-item-select">
+          <option value="">Select inventory item...</option>
+        </select>
+        <input type="number" id="bk-qty" placeholder="Quantity" min="1" value="1">
+        <input type="date" id="bk-date" placeholder="Event date">
+        <button class="btn-add-booking" onclick="addBookingItem()">Add to Booking</button>
+      </div>
+    </div>
+
     <hr class="panel-divider">
     <div class="panel-field">
       <label>Comment / Notes</label>
