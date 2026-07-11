@@ -984,9 +984,10 @@ async function loadInquiries(){
     const res = await fetch(API_URL + '/api/inquiries', {
       headers: { 'x-admin-secret': ADMIN_SECRET }
     });
-    allInquiries = await res.json();
+    const result = await res.json();
+    // Handle both array and error responses
+    allInquiries = Array.isArray(result) ? result : [];
     renderInquiries();
-    // Show new count badge
     const newCount = allInquiries.filter(i => i.status === 'new').length;
     const badge = document.getElementById('new-count');
     if(badge) {
@@ -995,6 +996,8 @@ async function loadInquiries(){
     }
   } catch(e) {
     console.log('Failed to load inquiries', e);
+    allInquiries = [];
+    renderInquiries();
   }
 }
 
