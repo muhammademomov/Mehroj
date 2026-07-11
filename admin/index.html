@@ -638,9 +638,7 @@ function closeModal(){
 }
 
 async function confirmModal(){
-  const item = readForm(CM.type);
-  if(!item) return;
-  // Handle inventory separately
+  // Handle inventory separately FIRST before readForm
   if(CM.type === 'inventory'){
     const name = document.getElementById('f-inv-name').value.trim();
     const category = document.getElementById('f-inv-cat').value;
