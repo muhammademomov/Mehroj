@@ -200,6 +200,33 @@
     .empty-state { text-align: center; padding: 4rem 2rem; color: var(--gray); }
     .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
 
+
+    /* PROJECTS */
+    .proj-list{display:flex;flex-direction:column;gap:10px}
+    .proj-row{background:white;border-radius:12px;border:1.5px solid var(--gray-l);padding:1rem 1.25rem;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .2s}
+    .proj-row:hover{border-color:var(--rose);box-shadow:0 2px 12px rgba(200,83,106,.1)}
+    .proj-status{flex-shrink:0;padding:5px 12px;border-radius:50px;font-size:11px;font-weight:700;white-space:nowrap}
+    .ps-new{background:#FEF3C7;color:#92400E}
+    .ps-quote_sent{background:#DBEAFE;color:#1E40AF}
+    .ps-confirmed{background:#EDE9FE;color:#5B21B6}
+    .ps-deposit_paid{background:#D1FAE5;color:#065F46}
+    .ps-completed{background:#F3F4F6;color:#374151}
+    .ps-cancelled{background:#FEE2E2;color:#991B1B}
+    .proj-info{flex:1;min-width:0}
+    .proj-name{font-weight:700;font-size:15px;color:var(--dark)}
+    .proj-meta{font-size:12px;color:var(--gray);margin-top:2px}
+    .proj-date{font-size:12px;color:var(--gray);flex-shrink:0}
+
+    /* QUOTE BUILDER */
+    .quote-builder{background:white;border-radius:14px;border:1.5px solid var(--gray-l);padding:1.5rem;margin-top:1rem}
+    .qi-row{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+    .qi-row input,.qi-row select{padding:8px 10px;border:1.5px solid var(--gray-l);border-radius:7px;font-size:13px;font-family:var(--font-b);outline:none}
+    .qi-row input:focus,.qi-row select:focus{border-color:var(--rose)}
+    .btn-del-qi{padding:7px 10px;background:#FDECEA;color:var(--red);border:none;border-radius:7px;cursor:pointer;font-size:16px}
+    .quote-total-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:2px solid var(--dark);margin-top:12px;font-family:var(--font-d);font-size:1.2rem;font-weight:700;color:var(--rose)}
+    .quote-link-box{background:var(--rose-pale);border:1px solid var(--rose-light);border-radius:8px;padding:10px 14px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+    .btn-copy-link{padding:6px 14px;background:var(--rose);color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-b)}
+
     /* INVENTORY */
     .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 14px; }
     .inv-card { background: white; border-radius: 12px; border: 1.5px solid var(--gray-l); padding: 1.2rem; transition: box-shadow .2s; }
@@ -281,6 +308,9 @@
       </div>
       <div class="sid-section">
         <span class="sid-label">CRM</span>
+        <button class="sid-btn" onclick="showTab('projects',this)">
+          <span class="sid-icon">🗂</span> Projects
+        </button>
         <button class="sid-btn" onclick="showTab('inquiries',this)" id="inq-btn">
           <span class="sid-icon">📋</span> Inquiries <span class="inq-count" id="new-count" style="display:none">0</span>
         </button>
@@ -355,6 +385,20 @@
         </div>
         <div id="inq-list" class="inq-list">
           <div class="empty-state"><div class="empty-icon">📋</div><p>No inquiries yet</p></div>
+        </div>
+      </div>
+
+      <!-- PROJECTS TAB -->
+      <div class="tab" id="tab-projects">
+        <div class="tab-hdr">
+          <div>
+            <div class="tab-title">Projects</div>
+            <div class="tab-sub">Manage client events from inquiry to completion</div>
+          </div>
+          <button class="add-btn" onclick="openNewProject()">+ New Project</button>
+        </div>
+        <div class="proj-list" id="proj-list">
+          <div style="color:var(--gray);padding:2rem;text-align:center">Loading projects...</div>
         </div>
       </div>
 
@@ -655,6 +699,56 @@ function closeModal(){
 }
 
 async function confirmModal(){
+  // Handle project
+  if(CM.type === 'project'){
+    const data = {
+      client_name: document.getElementById('pf-name').value.trim(),
+      client_email: document.getElementById('pf-email').value.trim(),
+      client_phone: document.getElementById('pf-phone').value.trim(),
+      event_type: document.getElementById('pf-type').value,
+      event_date: document.getElementById('pf-date').value || null,
+      event_address: document.getElementById('pf-address').value.trim(),
+      event_time: document.getElementById('pf-time').value.trim(),
+      source: document.getElementById('pf-source').value,
+      notes: document.getElementById('pf-notes').value.trim()
+    };
+    const isEdit = CM.idx && CM.idx !== null;
+    const method = isEdit ? 'PATCH' : 'POST';
+    const url = isEdit ? API_URL+'/api/projects/'+CM.idx : API_URL+'/api/projects';
+    try {
+      const res = await fetch(url, { method, headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET}, body: JSON.stringify(data) });
+      const result = await res.json();
+      closeModal();
+      await loadProjects();
+      if(!isEdit && result.id) openProject(result.id);
+    } catch(e) { console.log('Project save failed', e); }
+    return;
+  }
+
+  // Handle quote
+  if(CM.type === 'quote'){
+    const items = readQuoteItems();
+    const data = {
+      project_id: currentQuoteProjectId,
+      title: document.getElementById('qf-title').value.trim(),
+      items,
+      discount: document.getElementById('qf-discount').value,
+      tax: document.getElementById('qf-tax').value,
+      deposit: document.getElementById('qf-deposit').value,
+      notes: document.getElementById('qf-notes').value.trim(),
+      terms: document.getElementById('qf-terms').value.trim()
+    };
+    const isEdit = CM.idx && CM.idx !== null;
+    const method = isEdit ? 'PATCH' : 'POST';
+    const url = isEdit ? API_URL+'/api/quotes/'+CM.idx : API_URL+'/api/quotes';
+    try {
+      const res = await fetch(url, { method, headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET}, body: JSON.stringify(data) });
+      closeModal();
+      if(currentProjectId) loadProjectQuotes(currentProjectId);
+    } catch(e) { console.log('Quote save failed', e); }
+    return;
+  }
+
   // Handle inventory separately FIRST before readForm
   if(CM.type === 'inventory'){
     const name = document.getElementById('f-inv-name').value.trim();
@@ -1269,6 +1363,311 @@ showTab = function(name, btn){
   if(name === 'inventory') loadInventory();
 }
 
+
+
+// ===== PROJECTS =====
+let allProjects = [];
+let currentProjectId = null;
+
+const PROJ_STATUSES = {
+  new: { label: '🟡 New', css: 'ps-new' },
+  quote_sent: { label: '📨 Quote Sent', css: 'ps-quote_sent' },
+  confirmed: { label: '🟣 Confirmed', css: 'ps-confirmed' },
+  deposit_paid: { label: '💚 Deposit Paid', css: 'ps-deposit_paid' },
+  completed: { label: '⚫ Completed', css: 'ps-completed' },
+  cancelled: { label: '❌ Cancelled', css: 'ps-cancelled' }
+};
+
+async function loadProjects(){
+  try {
+    const res = await fetch(API_URL + '/api/projects', { headers: { 'x-admin-secret': ADMIN_SECRET } });
+    allProjects = await res.json();
+    renderProjects();
+  } catch(e) { console.log('Failed to load projects', e); }
+}
+
+function renderProjects(){
+  const list = document.getElementById('proj-list');
+  if(!allProjects.length){
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🗂</div><p>No projects yet.<br>Create your first project!</p></div>';
+    return;
+  }
+  list.innerHTML = allProjects.map(p => {
+    const st = PROJ_STATUSES[p.status] || PROJ_STATUSES.new;
+    const date = p.event_date ? new Date(p.event_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'No date';
+    return `
+      <div class="proj-row" onclick="openProject('${p.id}')">
+        <span class="proj-status ${st.css}">${st.label}</span>
+        <div class="proj-info">
+          <div class="proj-name">${p.client_name || 'Unknown Client'}</div>
+          <div class="proj-meta">${p.event_type||''} ${p.event_address ? '· '+p.event_address : ''}</div>
+        </div>
+        <div class="proj-date">${date}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openNewProject(){
+  currentProjectId = null;
+  CM = { type: 'project', idx: null };
+  document.getElementById('modal-title').textContent = 'New Project';
+  document.getElementById('modal-body').innerHTML = buildProjectForm(null);
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+async function openProject(id){
+  currentProjectId = id;
+  const proj = allProjects.find(p => p.id === id);
+  // Open side panel with project details
+  document.getElementById('side-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+  document.getElementById('panel-name').textContent = proj?.client_name || 'Project';
+  document.getElementById('panel-fields').innerHTML = buildProjectPanel(proj);
+  document.getElementById('panel-status').style.display = 'none';
+  document.getElementById('panel-comment').closest('.panel-field').style.display = 'none';
+  document.querySelector('.btn-save-comment').style.display = 'none';
+  // Load quotes
+  loadProjectQuotes(id);
+}
+
+function buildProjectPanel(p){
+  if(!p) return '';
+  const st = PROJ_STATUSES[p.status] || PROJ_STATUSES.new;
+  return `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin-bottom:6px">Status</div>
+      <select onchange="updateProjectStatus('${p.id}',this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:14px;font-family:var(--font-b);font-weight:600;outline:none">
+        ${Object.entries(PROJ_STATUSES).map(([k,v]) => `<option value="${k}" ${p.status===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <hr class="panel-divider">
+    ${p.client_email ? `<div class="panel-field"><label>Email</label><p><a href="mailto:${p.client_email}" style="color:var(--rose)">${p.client_email}</a></p></div>` : ''}
+    ${p.client_phone ? `<div class="panel-field"><label>Phone</label><p><a href="tel:${p.client_phone}" style="color:var(--rose)">${p.client_phone}</a></p></div>` : ''}
+    ${p.event_type ? `<div class="panel-field"><label>Event Type</label><p>${p.event_type}</p></div>` : ''}
+    ${p.event_date ? `<div class="panel-field"><label>Event Date</label><p>${new Date(p.event_date).toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>` : ''}
+    ${p.event_address ? `<div class="panel-field"><label>Venue</label><p>${p.event_address}</p></div>` : ''}
+    ${p.event_time ? `<div class="panel-field"><label>Schedule</label><p>${p.event_time}</p></div>` : ''}
+    ${p.source ? `<div class="panel-field"><label>Source</label><p>${p.source}</p></div>` : ''}
+    ${p.notes ? `<div class="panel-field"><label>Notes</label><p>${p.notes}</p></div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-edit" onclick="editProject('${p.id}')" style="flex:1">✏ Edit</button>
+      <button class="btn-del" onclick="deleteProject('${p.id}')">🗑 Delete</button>
+    </div>
+    <hr class="panel-divider">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin-bottom:10px">Quotes</div>
+    <div id="proj-quotes-list">Loading...</div>
+    <button class="add-btn" style="width:100%;justify-content:center;margin-top:10px" onclick="openNewQuote('${p.id}')">+ Create Quote</button>
+  `;
+}
+
+async function loadProjectQuotes(projectId){
+  try {
+    const res = await fetch(API_URL + '/api/quotes/project/' + projectId, { headers: { 'x-admin-secret': ADMIN_SECRET } });
+    const quotes = await res.json();
+    const el = document.getElementById('proj-quotes-list');
+    if(!quotes.length){
+      el.innerHTML = '<p style="font-size:13px;color:var(--gray)">No quotes yet</p>';
+      return;
+    }
+    el.innerHTML = quotes.map(q => `
+      <div style="background:var(--off);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--gray-l)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-weight:600;font-size:14px">${q.title}</div>
+          <div style="font-family:var(--font-d);font-size:1.1rem;color:var(--rose);font-weight:700">$${parseFloat(q.total).toFixed(2)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="status-pill ${q.status==='sent'?'issued':q.status==='accepted'?'returned':'booked'}" onclick="openQuoteEdit('${q.id}')">✏ Edit</button>
+          <button class="status-pill booked" onclick="viewQuote('${q.id}')">👁 Preview</button>
+          <button class="status-pill returned" onclick="copyQuoteLink('${q.id}')">🔗 Copy Link</button>
+          <button class="btn-del-booking" onclick="deleteQuote('${q.id}')">🗑</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { console.log('Failed to load quotes', e); }
+}
+
+async function updateProjectStatus(id, status){
+  try {
+    await fetch(API_URL + '/api/projects/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify({ status })
+    });
+    const p = allProjects.find(x => x.id === id);
+    if(p) p.status = status;
+    renderProjects();
+  } catch(e) { console.log('Status update failed', e); }
+}
+
+async function deleteProject(id){
+  if(!confirm('Delete this project and all its quotes?')) return;
+  try {
+    await fetch(API_URL + '/api/projects/' + id, { method: 'DELETE', headers: { 'x-admin-secret': ADMIN_SECRET } });
+    allProjects = allProjects.filter(p => p.id !== id);
+    renderProjects();
+    closePanel();
+  } catch(e) { console.log('Delete failed', e); }
+}
+
+function editProject(id){
+  currentProjectId = id;
+  CM = { type: 'project', idx: id };
+  const proj = allProjects.find(p => p.id === id);
+  document.getElementById('modal-title').textContent = 'Edit Project';
+  document.getElementById('modal-body').innerHTML = buildProjectForm(proj);
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function buildProjectForm(p){
+  return `
+    <div class="form-grid">
+      <div class="fg"><label>Client Name *</label><input id="pf-name" value="${p?.client_name||''}" placeholder="Jane Smith"></div>
+      <div class="fg"><label>Email</label><input id="pf-email" type="email" value="${p?.client_email||''}" placeholder="jane@email.com"></div>
+      <div class="fg"><label>Phone</label><input id="pf-phone" value="${p?.client_phone||''}" placeholder="(555) 000-0000"></div>
+      <div class="fg"><label>Event Type</label>
+        <select id="pf-type">
+          <option value="">Select...</option>
+          ${['Wedding','Birthday Party','Proposal','Corporate Event','Baby Shower','Quinceañera','Sweet 16','Other'].map(t=>`<option value="${t}" ${p?.event_type===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fg"><label>Event Date</label><input id="pf-date" type="date" value="${p?.event_date?.split('T')[0]||''}"></div>
+      <div class="fg"><label>Source</label>
+        <select id="pf-source">
+          <option value="">Select...</option>
+          ${['Google','Instagram','Facebook','TikTok','Referral','The Knot','WeddingWire','Other'].map(s=>`<option value="${s}" ${p?.source===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fg full"><label>Venue / Address</label><input id="pf-address" value="${p?.event_address||''}" placeholder="Washington DC"></div>
+      <div class="fg full"><label>Schedule (Setup/Start/End)</label><input id="pf-time" value="${p?.event_time||''}" placeholder="Setup 4pm · Start 6pm · End 10pm"></div>
+      <div class="fg full"><label>Notes</label><textarea id="pf-notes">${p?.notes||''}</textarea></div>
+    </div>
+  `;
+}
+
+// ===== QUOTES =====
+let currentQuoteProjectId = null;
+let quoteItems = [];
+
+function openNewQuote(projectId){
+  currentQuoteProjectId = projectId;
+  quoteItems = [];
+  CM = { type: 'quote', idx: null };
+  document.getElementById('modal-title').textContent = 'Create Quote';
+  document.getElementById('modal-body').innerHTML = buildQuoteForm(null);
+  setTimeout(calcQuoteTotal, 100);
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+async function openQuoteEdit(quoteId){
+  try {
+    const res = await fetch(API_URL + '/api/quote/' + quoteId + '/public');
+    const q = await res.json();
+    currentQuoteProjectId = q.project_id;
+    quoteItems = q.items || [];
+    CM = { type: 'quote', idx: quoteId };
+    document.getElementById('modal-title').textContent = 'Edit Quote';
+    document.getElementById('modal-body').innerHTML = buildQuoteForm(q);
+    document.getElementById('modal-bg').classList.add('open');
+  } catch(e) { console.log('Load quote failed', e); }
+}
+
+function buildQuoteForm(q){
+  return `
+    <div class="form-grid">
+      <div class="fg full"><label>Quote Title</label><input id="qf-title" value="${q?.title||'Event Quote'}" placeholder="Event Quote"></div>
+    </div>
+    <div style="margin:12px 0 6px;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em">Items</div>
+    <div id="qi-list">
+      ${(q?.items||[]).map((item,i) => quoteItemRow(item, i)).join('')}
+    </div>
+    <button class="btn-add-booking" onclick="addQuoteItem()" style="margin-bottom:16px">+ Add Item</button>
+    <div class="form-grid">
+      <div class="fg"><label>Discount ($)</label><input id="qf-discount" type="number" value="${q?.discount||0}" min="0" oninput="calcQuoteTotal()"></div>
+      <div class="fg"><label>Tax ($)</label><input id="qf-tax" type="number" value="${q?.tax||0}" min="0" oninput="calcQuoteTotal()"></div>
+      <div class="fg"><label>Deposit Required ($)</label><input id="qf-deposit" type="number" value="${q?.deposit||0}" min="0"></div>
+      <div class="fg"><label>Total</label><input id="qf-total" readonly style="font-weight:700;color:var(--rose);font-family:var(--font-d);font-size:1.1rem"></div>
+      <div class="fg full"><label>Notes for Client</label><textarea id="qf-notes">${q?.notes||''}</textarea></div>
+      <div class="fg full"><label>Terms & Conditions</label><textarea id="qf-terms">${q?.terms||'Delivery, setup, and breakdown are included. A 50% deposit is required to secure your date.'}</textarea></div>
+    </div>
+  `;
+  setTimeout(calcQuoteTotal, 100);
+}
+
+function quoteItemRow(item, i){
+  return `
+    <div class="qi-row" id="qi-${i}">
+      <input placeholder="Item name" value="${item?.name||''}" oninput="calcQuoteTotal()">
+      <input type="number" placeholder="Qty" value="${item?.qty||1}" min="1" style="width:70px" oninput="calcQuoteTotal()">
+      <input type="number" placeholder="Price" value="${item?.price||0}" min="0" step="0.01" oninput="calcQuoteTotal()">
+      <button class="btn-del-qi" onclick="this.closest('.qi-row').remove();calcQuoteTotal()">×</button>
+    </div>
+  `;
+}
+
+function addQuoteItem(){
+  const list = document.getElementById('qi-list');
+  const div = document.createElement('div');
+  div.className = 'qi-row';
+  div.innerHTML = `
+    <input placeholder="Item name" oninput="calcQuoteTotal()">
+    <input type="number" placeholder="Qty" value="1" min="1" style="width:70px" oninput="calcQuoteTotal()">
+    <input type="number" placeholder="Price" value="0" min="0" step="0.01" oninput="calcQuoteTotal()">
+    <button class="btn-del-qi" onclick="this.closest('.qi-row').remove();calcQuoteTotal()">×</button>
+  `;
+  list.appendChild(div);
+}
+
+function calcQuoteTotal(){
+  let subtotal = 0;
+  document.querySelectorAll('.qi-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const qty = parseFloat(inputs[1]?.value)||0;
+    const price = parseFloat(inputs[2]?.value)||0;
+    subtotal += qty * price;
+  });
+  const discount = parseFloat(document.getElementById('qf-discount')?.value)||0;
+  const tax = parseFloat(document.getElementById('qf-tax')?.value)||0;
+  const total = subtotal - discount + tax;
+  const totalEl = document.getElementById('qf-total');
+  if(totalEl) totalEl.value = '$' + total.toFixed(2);
+}
+
+function readQuoteItems(){
+  const items = [];
+  document.querySelectorAll('.qi-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const name = inputs[0]?.value.trim();
+    const qty = parseInt(inputs[1]?.value)||1;
+    const price = parseFloat(inputs[2]?.value)||0;
+    if(name) items.push({ name, qty, price });
+  });
+  return items;
+}
+
+function viewQuote(id){
+  window.open('../pages/quote.html?id=' + id, '_blank');
+}
+
+function copyQuoteLink(id){
+  const link = location.origin + location.pathname.replace('/admin/index.html','') + '/pages/quote.html?id=' + id;
+  navigator.clipboard.writeText(link).then(() => alert('✓ Quote link copied! Send it to your client.'));
+}
+
+async function deleteQuote(id){
+  if(!confirm('Delete this quote?')) return;
+  try {
+    await fetch(API_URL + '/api/quotes/' + id, { method: 'DELETE', headers: { 'x-admin-secret': ADMIN_SECRET } });
+    if(currentProjectId) loadProjectQuotes(currentProjectId);
+  } catch(e) { console.log('Delete quote failed', e); }
+}
+
+// Update showTab to load projects
+const _origShowTab2 = showTab;
+showTab = function(name, btn){
+  _origShowTab2(name, btn);
+  if(name === 'projects') loadProjects();
+}
 
 // ===== BOOKINGS IN PANEL =====
 let panelBookings = [];
