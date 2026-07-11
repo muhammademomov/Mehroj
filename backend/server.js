@@ -384,6 +384,36 @@ app.patch('/api/booking/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET bookings by inquiry_id
+app.get('/api/bookings/inquiry/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute(
+      'SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b LEFT JOIN inventory i ON b.item_id = i.id WHERE b.inquiry_id = ? ORDER BY b.created_at',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH booking status
+app.patch('/api/booking/:id/status', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('UPDATE bookings SET status=? WHERE id=?', [req.body.status, req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE booking
+app.delete('/api/booking/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('DELETE FROM bookings WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Health check
 app.get('/', (req, res) => {
   res.json({ status: 'GlowUp API running ✓' });
