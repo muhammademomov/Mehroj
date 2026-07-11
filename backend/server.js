@@ -36,7 +36,7 @@ async function connectDB() {
         id VARCHAR(50) PRIMARY KEY,
         data LONGTEXT NOT NULL,
         status VARCHAR(50) DEFAULT 'new',
-        comment TEXT DEFAULT '',
+        comment TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -50,7 +50,7 @@ async function connectDB() {
 
     console.log('Tables ready!');
   } catch(e) {
-    console.error('DB Error:', e.message, e.code, 'HOST:', process.env.MYSQLHOST, 'USER:', process.env.MYSQLUSER, 'DB:', process.env.MYSQLDATABASE);
+    console.error('DB Error:', e.message);
   }
 }
 
