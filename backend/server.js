@@ -41,6 +41,30 @@ async function connectDB() {
       )
     `);
 
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS inventory (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        category VARCHAR(100),
+        total_qty INT DEFAULT 1,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id VARCHAR(50) PRIMARY KEY,
+        inquiry_id VARCHAR(50),
+        item_id VARCHAR(50),
+        item_name VARCHAR(200),
+        qty_needed INT DEFAULT 1,
+        event_date DATE,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Insert default site data if empty
     const [rows] = await db.execute('SELECT id FROM site_data WHERE id = 1');
     if(rows.length === 0) {
@@ -228,6 +252,136 @@ app.patch('/api/inquiry/:id', async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ===== INVENTORY =====
+
+// GET all inventory items
+app.get('/api/inventory', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [items] = await db.execute('SELECT * FROM inventory ORDER BY category, name');
+    // For each item get current bookings
+    const result = [];
+    for(const item of items) {
+      const [bookings] = await db.execute(
+        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id = ? AND status != 'cancelled' AND event_date >= CURDATE()",
+        [item.id]
+      );
+      item.in_use = parseInt(bookings[0].used) || 0;
+      item.available = item.total_qty - item.in_use;
+      result.push(item);
+    }
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST add inventory item
+app.post('/api/inventory', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const id = 'inv_' + Date.now();
+    const { name, category, total_qty, notes } = req.body;
+    await db.execute(
+      'INSERT INTO inventory (id, name, category, total_qty, notes) VALUES (?, ?, ?, ?, ?)',
+      [id, name, category || '', total_qty || 1, notes || '']
+    );
+    res.json({ success: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH update inventory item
+app.patch('/api/inventory/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { name, category, total_qty, notes } = req.body;
+    await db.execute(
+      'UPDATE inventory SET name=?, category=?, total_qty=?, notes=? WHERE id=?',
+      [name, category, total_qty, notes, req.params.id]
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE inventory item
+app.delete('/api/inventory/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('DELETE FROM inventory WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== BOOKINGS =====
+
+// GET bookings for a date (check availability)
+app.get('/api/availability', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { date } = req.query;
+    const [bookings] = await db.execute(
+      "SELECT b.*, i.name, i.total_qty FROM bookings b JOIN inventory i ON b.item_id = i.id WHERE b.event_date = ? AND b.status != 'cancelled'",
+      [date]
+    );
+    res.json(bookings);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST add booking items to inquiry
+app.post('/api/booking', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { inquiry_id, items, event_date } = req.body;
+    // items = [{item_id, item_name, qty_needed}]
+    const warnings = [];
+    for(const item of items) {
+      // Check availability
+      const [inv] = await db.execute('SELECT total_qty FROM inventory WHERE id=?', [item.item_id]);
+      const [used] = await db.execute(
+        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id=? AND event_date=? AND status!='cancelled'",
+        [item.item_id, event_date]
+      );
+      const total = inv[0]?.total_qty || 0;
+      const inUse = parseInt(used[0]?.used) || 0;
+      const available = total - inUse;
+      if(item.qty_needed > available) {
+        warnings.push({
+          item: item.item_name,
+          needed: item.qty_needed,
+          available,
+          in_use: inUse,
+          total
+        });
+      }
+      // Add booking regardless (admin can handle)
+      const id = 'bk_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
+      await db.execute(
+        'INSERT INTO bookings (id, inquiry_id, item_id, item_name, qty_needed, event_date) VALUES (?,?,?,?,?,?)',
+        [id, inquiry_id, item.item_id, item.item_name, item.qty_needed, event_date]
+      );
+    }
+    res.json({ success: true, warnings });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET all bookings
+app.get('/api/bookings', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [bookings] = await db.execute(
+      'SELECT * FROM bookings ORDER BY event_date DESC'
+    );
+    res.json(bookings);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH update booking status
+app.patch('/api/booking/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('UPDATE bookings SET status=? WHERE id=?', [req.body.status, req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Health check
