@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Event Quote | GlowUp Rentals</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--rose:#C8536A;--rose-dark:#9E3A50;--rose-pale:#FDF0F2;--rose-light:#F2C4CE;--dark:#1A1118;--gray:#6B5B62;--gray-l:#D6C8CC;--white:#fff;--off:#FBF7F8;--green:#2E7D52;--font-d:'Playfair Display',serif;--font-b:'Inter',sans-serif}
+    body{font-family:var(--font-b);background:var(--off);color:var(--dark);min-height:100vh}
+    .loading{text-align:center;padding:4rem;color:var(--gray)}
+    .quote-page{max-width:780px;margin:0 auto;padding:2rem 1.5rem 4rem}
+
+    /* HEADER */
+    .quote-header{text-align:center;padding:2.5rem 2rem;background:linear-gradient(135deg,var(--rose),var(--rose-dark));border-radius:16px;color:white;margin-bottom:2rem}
+    .quote-logo{font-family:var(--font-d);font-size:1.5rem;font-weight:700;margin-bottom:1.5rem;opacity:.9}
+    .quote-title{font-family:var(--font-d);font-size:2rem;font-weight:700;margin-bottom:.5rem}
+    .quote-subtitle{font-size:14px;opacity:.8}
+    .quote-status-badge{display:inline-block;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:50px;padding:6px 18px;font-size:13px;font-weight:600;margin-top:1rem}
+
+    /* CLIENT INFO */
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:2rem}
+    .info-card{background:white;border-radius:12px;padding:1.2rem;border:1px solid var(--gray-l)}
+    .info-card h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);margin-bottom:8px}
+    .info-card p{font-size:15px;font-weight:500;color:var(--dark);line-height:1.6}
+
+    /* ITEMS TABLE */
+    .quote-section{background:white;border-radius:16px;border:1px solid var(--gray-l);overflow:hidden;margin-bottom:1.5rem}
+    .quote-section-title{padding:1.2rem 1.5rem;background:var(--off);border-bottom:1px solid var(--gray-l);font-family:var(--font-d);font-size:1.1rem;font-weight:600}
+    .items-table{width:100%;border-collapse:collapse}
+    .items-table th{padding:10px 16px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);background:var(--off);border-bottom:1px solid var(--gray-l)}
+    .items-table th:last-child,.items-table td:last-child{text-align:right}
+    .items-table td{padding:14px 16px;font-size:14px;border-bottom:1px solid #f5f0f2}
+    .items-table tr:last-child td{border-bottom:none}
+    .item-name{font-weight:600;color:var(--dark)}
+    .item-desc{font-size:12px;color:var(--gray);margin-top:2px}
+    .item-qty{color:var(--gray);font-size:13px}
+    .item-price{font-weight:600}
+
+    /* TOTALS */
+    .totals-section{background:white;border-radius:16px;border:1px solid var(--gray-l);padding:1.5rem;margin-bottom:1.5rem}
+    .total-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:15px}
+    .total-row.subtotal{color:var(--gray)}
+    .total-row.discount{color:var(--green)}
+    .total-row.divider{border-top:2px solid var(--dark);margin-top:8px;padding-top:16px}
+    .total-row.grand{font-family:var(--font-d);font-size:1.4rem;font-weight:700;color:var(--rose)}
+    .total-row.deposit{background:var(--rose-pale);border-radius:8px;padding:12px 16px;margin-top:8px;color:var(--rose);font-weight:600}
+
+    /* NOTES */
+    .notes-box{background:white;border-radius:16px;border:1px solid var(--gray-l);padding:1.5rem;margin-bottom:1.5rem}
+    .notes-box h4{font-family:var(--font-d);font-size:1rem;margin-bottom:10px}
+    .notes-box p{font-size:14px;color:var(--gray);line-height:1.75;white-space:pre-wrap}
+
+    /* CTA */
+    .quote-cta{text-align:center;padding:2rem;background:white;border-radius:16px;border:1px solid var(--gray-l)}
+    .quote-cta h3{font-family:var(--font-d);font-size:1.3rem;margin-bottom:8px}
+    .quote-cta p{color:var(--gray);font-size:14px;margin-bottom:1.5rem}
+    .cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+    .btn-accept{padding:14px 32px;background:var(--rose);color:white;border:none;border-radius:50px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font-b);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+    .btn-accept:hover{background:var(--rose-dark)}
+    .btn-call{padding:14px 32px;background:white;color:var(--dark);border:2px solid var(--gray-l);border-radius:50px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font-b);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+    .btn-call:hover{border-color:var(--rose);color:var(--rose)}
+
+    .footer-note{text-align:center;padding:2rem;font-size:12px;color:var(--gray)}
+    @media(max-width:600px){.info-grid{grid-template-columns:1fr}.cta-btns{flex-direction:column}.btn-accept,.btn-call{justify-content:center}}
+  </style>
+</head>
+<body>
+
+<div id="loading" class="loading">
+  <div style="font-size:2rem;margin-bottom:1rem">⏳</div>
+  <p>Loading your quote...</p>
+</div>
+
+<div id="quote-page" class="quote-page" style="display:none"></div>
+
+<script>
+const API_URL = 'https://mehroj-production.up.railway.app';
+const params = new URLSearchParams(window.location.search);
+const quoteId = params.get('id');
+
+const STATUS_LABELS = {
+  draft: '📝 Draft',
+  sent: '📨 Sent to Client',
+  accepted: '✅ Accepted',
+  declined: '❌ Declined',
+  invoiced: '💰 Invoiced',
+  paid: '✅ Paid'
+};
+
+async function loadQuote(){
+  if(!quoteId){
+    document.getElementById('loading').innerHTML = '<p>Invalid quote link.</p>';
+    return;
+  }
+  try {
+    const res = await fetch(API_URL + '/api/quote/' + quoteId + '/public');
+    if(!res.ok) throw new Error('Not found');
+    const q = await res.json();
+    renderQuote(q);
+  } catch(e) {
+    document.getElementById('loading').innerHTML = '<p>Quote not found or expired.</p>';
+  }
+}
+
+function fmt(n){ return '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('en-US', {weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
+
+function renderQuote(q){
+  const p = q.project || {};
+  const items = q.items || [];
+
+  const html = `
+    <div class="quote-header">
+      <div class="quote-logo">✦ GlowUp Rentals</div>
+      <div class="quote-title">${q.title || 'Event Quote'}</div>
+      <div class="quote-subtitle">Prepared exclusively for ${p.client_name || 'You'}</div>
+      <div class="quote-status-badge">${STATUS_LABELS[q.status] || q.status}</div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>Client</h4>
+        <p>${p.client_name || '—'}</p>
+      </div>
+      <div class="info-card">
+        <h4>Event Type</h4>
+        <p>${p.event_type || '—'}</p>
+      </div>
+      <div class="info-card">
+        <h4>Event Date</h4>
+        <p>${fmtDate(p.event_date)}</p>
+      </div>
+      <div class="info-card">
+        <h4>Venue</h4>
+        <p>${p.event_address || '—'}</p>
+      </div>
+    </div>
+
+    <div class="quote-section">
+      <div class="quote-section-title">Rental Items</div>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr>
+              <td>
+                <div class="item-name">${item.name}</div>
+                ${item.description ? `<div class="item-desc">${item.description}</div>` : ''}
+              </td>
+              <td class="item-qty">${item.qty}</td>
+              <td class="item-price">${fmt(item.price)}</td>
+              <td class="item-price">${fmt(item.total)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="totals-section">
+      <div class="total-row subtotal"><span>Subtotal</span><span>${fmt(q.subtotal)}</span></div>
+      ${parseFloat(q.discount) > 0 ? `<div class="total-row discount"><span>Discount</span><span>-${fmt(q.discount)}</span></div>` : ''}
+      ${parseFloat(q.tax) > 0 ? `<div class="total-row"><span>Tax</span><span>${fmt(q.tax)}</span></div>` : ''}
+      <div class="total-row divider grand"><span>Total</span><span>${fmt(q.total)}</span></div>
+      ${parseFloat(q.deposit) > 0 ? `<div class="total-row deposit"><span>💳 Deposit Required</span><span>${fmt(q.deposit)}</span></div>` : ''}
+    </div>
+
+    ${q.notes ? `
+    <div class="notes-box">
+      <h4>Notes</h4>
+      <p>${q.notes}</p>
+    </div>` : ''}
+
+    ${q.terms ? `
+    <div class="notes-box">
+      <h4>Terms & Conditions</h4>
+      <p>${q.terms}</p>
+    </div>` : ''}
+
+    <div class="quote-cta">
+      <h3>Ready to move forward?</h3>
+      <p>Contact us to confirm your booking and secure your date with a deposit.</p>
+      <div class="cta-btns">
+        <a href="tel:+15717861516" class="btn-accept">📞 Call to Book — 571-786-1516</a>
+        <a href="../pages/inquiry.html" class="btn-call">✉ Send Message</a>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Quote ID: ${q.id} · Generated by GlowUp Rentals · Alexandria, VA<br>
+      Serving DC · Maryland · Virginia · Philadelphia · NYC
+    </div>
+  `;
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('quote-page').style.display = 'block';
+  document.getElementById('quote-page').innerHTML = html;
+}
+
+loadQuote();
+</script>
+</body>
+</html>
