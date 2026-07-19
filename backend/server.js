@@ -93,6 +93,8 @@ async function connectDB() {
     `);
     // Add inquiry_id column if not exists (for existing tables)
     try { await db.execute('ALTER TABLE projects ADD COLUMN inquiry_id VARCHAR(50)'); } catch(e) {}
+    // Add project_id column to bookings if not exists (for existing tables)
+    try { await db.execute('ALTER TABLE bookings ADD COLUMN project_id VARCHAR(50)'); } catch(e) {}
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS quotes (
@@ -384,7 +386,7 @@ app.get('/api/availability', async (req, res) => {
 app.post('/api/booking', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const { inquiry_id, items, event_date } = req.body;
+    const { inquiry_id, project_id, items, event_date } = req.body;
     // items = [{item_id, item_name, qty_needed}]
     const warnings = [];
     for(const item of items) {
@@ -409,8 +411,8 @@ app.post('/api/booking', async (req, res) => {
       // Add booking regardless (admin can handle)
       const id = 'bk_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
       await db.execute(
-        'INSERT INTO bookings (id, inquiry_id, item_id, item_name, qty_needed, event_date) VALUES (?,?,?,?,?,?)',
-        [id, inquiry_id, item.item_id, item.item_name, item.qty_needed, event_date]
+        'INSERT INTO bookings (id, inquiry_id, project_id, item_id, item_name, qty_needed, event_date) VALUES (?,?,?,?,?,?,?)',
+        [id, inquiry_id||null, project_id||null, item.item_id, item.item_name, item.qty_needed, event_date]
       );
     }
     res.json({ success: true, warnings });
@@ -443,6 +445,18 @@ app.get('/api/bookings/inquiry/:id', async (req, res) => {
   try {
     const [rows] = await db.execute(
       'SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b LEFT JOIN inventory i ON b.item_id = i.id WHERE b.inquiry_id = ? ORDER BY b.created_at',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET bookings by project_id
+app.get('/api/bookings/project/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute(
+      'SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b LEFT JOIN inventory i ON b.item_id = i.id WHERE b.project_id = ? ORDER BY b.created_at',
       [req.params.id]
     );
     res.json(rows);
@@ -495,6 +509,10 @@ app.post('/api/projects', async (req, res) => {
       'INSERT INTO projects (id,inquiry_id,client_name,client_email,client_phone,event_type,event_date,event_address,event_time,location_type,notes,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
       [id, inquiry_id||null, client_name||'', client_email||'', client_phone||'', event_type||'', event_date||null, event_address||'', event_time||'', location_type||'', notes||'', source||'']
     );
+    // Carry over any rented items already added while this was still an inquiry
+    if(inquiry_id){
+      await db.execute('UPDATE bookings SET project_id=? WHERE inquiry_id=? AND project_id IS NULL', [id, inquiry_id]);
+    }
     res.json({ success: true, id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
