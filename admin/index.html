@@ -1212,11 +1212,17 @@ function renderInquiries(){
 
 function openPanel(id){
   currentInqId = id;
+  currentProjectId = null; // leaving project context
   const inq = allInquiries.find(i => i.id === id);
   if(!inq) return;
 
   const name = (inq['First Name *'] || inq['First Name'] || '') + ' ' + (inq['Last Name *'] || inq['Last Name'] || '');
   document.getElementById('panel-name').textContent = name.trim() || 'Inquiry';
+  document.getElementById('panel-status').style.display = '';
+  document.getElementById('panel-comment').closest('.panel-field').style.display = '';
+  document.querySelector('.btn-save-comment').style.display = '';
+  const convertBtn = document.querySelector('[onclick="convertInquiryToProject(currentInqId)"]');
+  if(convertBtn) convertBtn.style.display = '';
   document.getElementById('panel-status').value = inq.status || 'new';
   document.getElementById('panel-comment').value = inq.comment || '';
 
@@ -1455,6 +1461,7 @@ function openNewProject(){
 
 async function openProject(id){
   currentProjectId = id;
+  currentInqId = null; // leaving inquiry context so bookings/convert actions target the project
   const proj = allProjects.find(p => p.id === id);
   // Open side panel with project details
   document.getElementById('side-panel').classList.add('open');
@@ -1464,8 +1471,16 @@ async function openProject(id){
   document.getElementById('panel-status').style.display = 'none';
   document.getElementById('panel-comment').closest('.panel-field').style.display = 'none';
   document.querySelector('.btn-save-comment').style.display = 'none';
+  const convertBtn = document.querySelector('[onclick="convertInquiryToProject(currentInqId)"]');
+  if(convertBtn) convertBtn.style.display = 'none';
   // Load quotes
   loadProjectQuotes(id);
+  // Load rented items already tied to this project (including ones carried over from the inquiry)
+  const eventDate = proj?.event_date ? new Date(proj.event_date).toISOString().slice(0,10) : '';
+  if(eventDate && document.getElementById('bk-date')) document.getElementById('bk-date').value = eventDate;
+  loadProjectBookings(id);
+  if(allInventory.length) populateInventorySelect();
+  else loadInventory().then(() => populateInventorySelect());
 }
 
 function buildProjectPanel(p){
@@ -1709,6 +1724,18 @@ showTab = function(name, btn){
 // ===== BOOKINGS IN PANEL =====
 let panelBookings = [];
 
+async function loadProjectBookings(projectId){
+  try {
+    const res = await fetch(API_URL + '/api/bookings/project/' + projectId, {
+      headers: { 'x-admin-secret': ADMIN_SECRET }
+    });
+    panelBookings = await res.json();
+    renderPanelBookings();
+  } catch(e) {
+    document.getElementById('panel-bookings').innerHTML = '<div style="font-size:13px;color:var(--gray)">No items yet</div>';
+  }
+}
+
 async function loadPanelBookings(inquiryId){
   try {
     const res = await fetch(API_URL + '/api/bookings/inquiry/' + inquiryId, {
@@ -1784,14 +1811,15 @@ async function addBookingItem(){
 
   if(!itemId){ alert('Please select an item'); return; }
   if(!date){ alert('Please select event date'); return; }
-  if(!currentInqId){ return; }
+  if(!currentInqId && !currentProjectId){ return; }
 
   try {
     const res = await fetch(API_URL + '/api/booking', {
       method: 'POST',
       headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
       body: JSON.stringify({
-        inquiry_id: currentInqId,
+        inquiry_id: currentInqId || null,
+        project_id: currentProjectId || null,
         items: [{ item_id: itemId, item_name: itemName, qty_needed: qty }],
         event_date: date
       })
@@ -1806,7 +1834,8 @@ async function addBookingItem(){
     select.value = '';
     document.getElementById('bk-qty').value = '1';
     // Reload bookings
-    loadPanelBookings(currentInqId);
+    if(currentProjectId) loadProjectBookings(currentProjectId);
+    else loadPanelBookings(currentInqId);
   } catch(e) { console.log('Add booking failed', e); }
 }
 
