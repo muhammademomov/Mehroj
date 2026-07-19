@@ -451,13 +451,18 @@ app.get('/api/bookings/inquiry/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET bookings by project_id
+// GET bookings by project_id (also picks up items still tagged with the project's original inquiry_id,
+// so projects created before the project_id column existed show their items too)
 app.get('/api/bookings/project/:id', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute(
-      'SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b LEFT JOIN inventory i ON b.item_id = i.id WHERE b.project_id = ? ORDER BY b.created_at',
-      [req.params.id]
+      `SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b
+       LEFT JOIN inventory i ON b.item_id = i.id
+       WHERE b.project_id = ?
+          OR b.inquiry_id = (SELECT inquiry_id FROM projects WHERE id = ?)
+       ORDER BY b.created_at`,
+      [req.params.id, req.params.id]
     );
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
