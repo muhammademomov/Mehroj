@@ -1258,49 +1258,48 @@ async function updateStatus(){
       headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
       body: JSON.stringify({ status })
     });
-    // Update local
     const inq = allInquiries.find(i => i.id === currentInqId);
     if(inq) inq.status = status;
     renderInquiries();
-
-    // If status changed from 'new' to something else → create project
-    if(status !== 'new' && inq) {
-      // Check if project already exists for this inquiry
-      const projRes = await fetch(API_URL + '/api/projects', {
-        headers: { 'x-admin-secret': ADMIN_SECRET }
-      });
-      const projects = await projRes.json();
-      const exists = projects.find(p => p.inquiry_id === currentInqId);
-      if(!exists) {
-        // Create project from inquiry data
-        const data = inq;
-        const clientName = (data['First Name'] || data['First Name *'] || '') + ' ' + (data['Last Name'] || data['Last Name *'] || '');
-        await fetch(API_URL + '/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
-          body: JSON.stringify({
-            client_name: clientName.trim() || data.name || 'Unknown',
-            client_email: data['Email'] || data['Email *'] || '',
-            client_phone: data['Phone'] || '',
-            event_type: data['Event Type'] || '',
-            event_date: data['Event Date'] || null,
-            event_address: data['Event Address / Venue'] || data['City / Venue'] || '',
-            event_time: data['Event Setup & End Time'] || '',
-            location_type: data['Indoor or Outdoor'] || '',
-            notes: (data['Rental Items'] ? 'Items: ' + data['Rental Items'] + '\n' : '') + (data['Tell us about your event'] || data['Message / Additional Details'] || ''),
-            source: data['How did you hear about us?'] || '',
-            inquiry_id: currentInqId,
-            status: 'new'
-          })
-        });
-        // Show notification
-        const m = document.getElementById('saved-msg');
-        m.textContent = '✓ Project created!';
-        m.style.display = 'inline';
-        setTimeout(()=>{ m.style.display='none'; m.textContent='✓ Saved!'; }, 3000);
-      }
-    }
+    // Auto-create project if status changed from new
+    if(status !== 'new') await convertInquiryToProject(currentInqId);
   } catch(e) { console.log('Status update failed', e); }
+}
+
+async function convertInquiryToProject(inqId){
+  const inq = allInquiries.find(i => i.id === inqId);
+  if(!inq) return;
+  try {
+    // Check if project already exists
+    const projRes = await fetch(API_URL + '/api/projects', { headers: { 'x-admin-secret': ADMIN_SECRET } });
+    const projects = await projRes.json();
+    const exists = projects.find(p => p.inquiry_id === inqId);
+    if(exists) return; // Already exists
+
+    const clientName = (inq['First Name'] || inq['First Name *'] || '') + ' ' + (inq['Last Name'] || inq['Last Name *'] || '');
+    await fetch(API_URL + '/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      body: JSON.stringify({
+        inquiry_id: inqId,
+        client_name: clientName.trim() || inq.name || 'Unknown',
+        client_email: inq['Email'] || inq['Email *'] || '',
+        client_phone: inq['Phone'] || '',
+        event_type: inq['Event Type'] || '',
+        event_date: inq['Event Date'] || null,
+        event_address: inq['Event Address / Venue'] || inq['City / Venue'] || '',
+        event_time: inq['Event Setup & End Time'] || '',
+        location_type: inq['Indoor or Outdoor'] || '',
+        notes: (inq['Rental Items'] ? 'Items: ' + inq['Rental Items'] + '\n' : '') + (inq['Tell us about your event'] || inq['Message / Additional Details'] || ''),
+        source: inq['How did you hear about us?'] || '',
+        status: 'new'
+      })
+    });
+    const m = document.getElementById('saved-msg');
+    m.textContent = '✓ Project created!';
+    m.style.display = 'inline';
+    setTimeout(()=>{ m.style.display='none'; m.textContent='✓ Saved!'; }, 3000);
+  } catch(e) { console.log('Convert failed', e); }
 }
 
 async function saveComment(){
@@ -1877,6 +1876,9 @@ function autoSaveBranding(){
       </select>
     </div>
     <hr class="panel-divider">
+    <button onclick="convertInquiryToProject(currentInqId)" style="width:100%;padding:10px;background:var(--rose-pale);color:var(--rose);border:1.5px solid var(--rose-light);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-b);margin-bottom:12px">
+      🗂 Convert to Project
+    </button>
     <div id="panel-fields"></div>
     <hr class="panel-divider">
 
