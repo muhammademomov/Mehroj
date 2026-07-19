@@ -75,6 +75,7 @@ async function connectDB() {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS projects (
         id VARCHAR(50) PRIMARY KEY,
+        inquiry_id VARCHAR(50),
         client_name VARCHAR(200),
         client_email VARCHAR(200),
         client_phone VARCHAR(50),
@@ -90,6 +91,8 @@ async function connectDB() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
+    // Add inquiry_id column if not exists (for existing tables)
+    try { await db.execute('ALTER TABLE projects ADD COLUMN inquiry_id VARCHAR(50)'); } catch(e) {}
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS quotes (
@@ -487,10 +490,10 @@ app.post('/api/projects', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const id = 'prj_' + Date.now();
-    const { client_name, client_email, client_phone, event_type, event_date, event_address, event_time, location_type, notes, source } = req.body;
+    const { client_name, client_email, client_phone, event_type, event_date, event_address, event_time, location_type, notes, source, inquiry_id } = req.body;
     await db.execute(
-      'INSERT INTO projects (id,client_name,client_email,client_phone,event_type,event_date,event_address,event_time,location_type,notes,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-      [id, client_name||'', client_email||'', client_phone||'', event_type||'', event_date||null, event_address||'', event_time||'', location_type||'', notes||'', source||'']
+      'INSERT INTO projects (id,inquiry_id,client_name,client_email,client_phone,event_type,event_date,event_address,event_time,location_type,notes,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [id, inquiry_id||null, client_name||'', client_email||'', client_phone||'', event_type||'', event_date||null, event_address||'', event_time||'', location_type||'', notes||'', source||'']
     );
     res.json({ success: true, id });
   } catch(e) { res.status(500).json({ error: e.message }); }
