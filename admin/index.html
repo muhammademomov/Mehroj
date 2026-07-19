@@ -397,6 +397,15 @@
           </div>
           <button class="add-btn" onclick="openNewProject()">+ New Project</button>
         </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+          <select id="proj-filter-status" onchange="applyProjectFilters()" style="padding:9px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);font-weight:600;outline:none;background:white">
+            <option value="all">All Statuses</option>
+          </select>
+          <select id="proj-filter-city" onchange="applyProjectFilters()" style="padding:9px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);font-weight:600;outline:none;background:white">
+            <option value="all">All Cities</option>
+          </select>
+          <button onclick="resetProjectFilters()" style="padding:9px 14px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:13px;font-family:var(--font-b);font-weight:600;background:white;cursor:pointer;color:var(--gray)">Clear</button>
+        </div>
         <div class="proj-list" id="proj-list">
           <div style="color:var(--gray);padding:2rem;text-align:center">Loading projects...</div>
         </div>
@@ -1425,17 +1434,63 @@ async function loadProjects(){
   try {
     const res = await fetch(API_URL + '/api/projects', { headers: { 'x-admin-secret': ADMIN_SECRET } });
     allProjects = await res.json();
+    populateProjectFilterOptions();
     renderProjects();
   } catch(e) { console.log('Failed to load projects', e); }
 }
 
+let projStatusFilter = 'all';
+let projCityFilter = 'all';
+
+function populateProjectFilterOptions(){
+  const statusSel = document.getElementById('proj-filter-status');
+  if(statusSel && statusSel.options.length <= 1){
+    Object.entries(PROJ_STATUSES).forEach(([k,v]) => {
+      const opt = document.createElement('option');
+      opt.value = k; opt.textContent = v.label;
+      statusSel.appendChild(opt);
+    });
+  }
+  const citySel = document.getElementById('proj-filter-city');
+  if(citySel){
+    const prevValue = citySel.value || 'all';
+    const cities = [...new Set(allProjects.map(p => (p.event_address||'').trim()).filter(Boolean))].sort();
+    citySel.innerHTML = '<option value="all">All Cities</option>' +
+      cities.map(c => `<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
+    citySel.value = cities.includes(prevValue) ? prevValue : 'all';
+  }
+}
+
+function applyProjectFilters(){
+  projStatusFilter = document.getElementById('proj-filter-status')?.value || 'all';
+  projCityFilter = document.getElementById('proj-filter-city')?.value || 'all';
+  renderProjects();
+}
+
+function resetProjectFilters(){
+  projStatusFilter = 'all';
+  projCityFilter = 'all';
+  const statusSel = document.getElementById('proj-filter-status');
+  const citySel = document.getElementById('proj-filter-city');
+  if(statusSel) statusSel.value = 'all';
+  if(citySel) citySel.value = 'all';
+  renderProjects();
+}
+
 function renderProjects(){
   const list = document.getElementById('proj-list');
+  let filtered = allProjects;
+  if(projStatusFilter !== 'all') filtered = filtered.filter(p => (p.status||'new') === projStatusFilter);
+  if(projCityFilter !== 'all') filtered = filtered.filter(p => (p.event_address||'').trim() === projCityFilter);
   if(!allProjects.length){
     list.innerHTML = '<div class="empty-state"><div class="empty-icon">🗂</div><p>No projects yet.<br>Create your first project!</p></div>';
     return;
   }
-  list.innerHTML = allProjects.map(p => {
+  if(!filtered.length){
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🗂</div><p>No projects match these filters.</p></div>';
+    return;
+  }
+  list.innerHTML = filtered.map(p => {
     const st = PROJ_STATUSES[p.status] || PROJ_STATUSES.new;
     const date = p.event_date ? new Date(p.event_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'No date';
     return `
