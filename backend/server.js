@@ -97,6 +97,20 @@ async function connectDB() {
     try { await db.execute('ALTER TABLE bookings ADD COLUMN project_id VARCHAR(50)'); } catch(e) {}
     // Staff member assigned to carry out the project
     try { await db.execute('ALTER TABLE projects ADD COLUMN assigned_staff_id VARCHAR(50)'); } catch(e) {}
+    // Staff work progress on the assigned order: picked_up -> installed -> done
+    try { await db.execute("ALTER TABLE projects ADD COLUMN work_status VARCHAR(30)"); } catch(e) {}
+    // Pay per completed order
+    try { await db.execute('ALTER TABLE staff ADD COLUMN pay_rate DECIMAL(10,2) DEFAULT 0'); } catch(e) {}
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS staff_payments (
+        id VARCHAR(50) PRIMARY KEY,
+        staff_id VARCHAR(50) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        note VARCHAR(300),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS staff (
@@ -346,7 +360,7 @@ app.get('/api/inventory', async (req, res) => {
     const result = [];
     for(const item of items) {
       const [bookings] = await db.execute(
-        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id = ? AND status != 'cancelled' AND event_date >= CURDATE()",
+        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id = ? AND status NOT IN ('cancelled','returned') AND event_date >= CURDATE()",
         [item.id]
       );
       item.in_use = parseInt(bookings[0].used) || 0;
@@ -419,7 +433,7 @@ app.post('/api/booking', async (req, res) => {
       // Check availability
       const [inv] = await db.execute('SELECT total_qty FROM inventory WHERE id=?', [item.item_id]);
       const [used] = await db.execute(
-        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id=? AND event_date=? AND status!='cancelled'",
+        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id=? AND event_date=? AND status NOT IN ('cancelled','returned')",
         [item.item_id, event_date]
       );
       const total = inv[0]?.total_qty || 0;
@@ -554,7 +568,7 @@ const crypto = require('crypto');
 app.get('/api/staff', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const [rows] = await db.execute('SELECT id, name, phone, login, active, created_at FROM staff ORDER BY name');
+    const [rows] = await db.execute('SELECT id, name, phone, login, active, pay_rate, created_at FROM staff ORDER BY name');
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -562,11 +576,11 @@ app.get('/api/staff', async (req, res) => {
 app.post('/api/staff', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const { name, phone, login, password } = req.body;
+    const { name, phone, login, password, pay_rate } = req.body;
     if(!name || !login || !password) return res.status(400).json({ error: 'name, login and password are required' });
     const id = 'st_' + Date.now();
-    await db.execute('INSERT INTO staff (id, name, phone, login, password) VALUES (?,?,?,?,?)',
-      [id, name, phone||'', login, password]);
+    await db.execute('INSERT INTO staff (id, name, phone, login, password, pay_rate) VALUES (?,?,?,?,?,?)',
+      [id, name, phone||'', login, password, pay_rate||0]);
     res.json({ success: true, id });
   } catch(e) {
     if(e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'This login is already taken' });
@@ -577,7 +591,7 @@ app.post('/api/staff', async (req, res) => {
 app.patch('/api/staff/:id', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const fields = ['name','phone','login','password','active'];
+    const fields = ['name','phone','login','password','active','pay_rate'];
     const updates = fields.filter(f => req.body[f] !== undefined);
     if(!updates.length) return res.json({ success: true });
     const sql = 'UPDATE staff SET ' + updates.map(f => f+'=?').join(',') + ' WHERE id=?';
@@ -638,7 +652,7 @@ app.get('/api/staff/orders', async (req, res) => {
     if(!me) return res.status(401).json({ error: 'Unauthorized' });
     const [rows] = await db.execute(
       `SELECT p.id, p.client_name, p.event_type, p.event_date, p.event_time, p.event_address, p.location_type, p.notes,
-              p.assigned_staff_id, s.name as assigned_staff_name,
+              p.assigned_staff_id, p.work_status, p.inquiry_id, s.name as assigned_staff_name,
               (SELECT response FROM staff_responses WHERE project_id=p.id AND staff_id=?) as my_response
        FROM projects p
        LEFT JOIN staff s ON p.assigned_staff_id = s.id
@@ -646,7 +660,134 @@ app.get('/api/staff/orders', async (req, res) => {
        ORDER BY p.event_date ASC`,
       [me.id]
     );
+    // Attach rented items for the orders assigned to me, so I can mark them picked up / returned
+    for(const p of rows){
+      if(p.assigned_staff_id === me.id){
+        const [items] = await db.execute(
+          `SELECT b.id, b.item_name, b.qty_needed, b.status FROM bookings b
+           WHERE b.project_id = ? OR (b.inquiry_id IS NOT NULL AND b.inquiry_id = ?)
+           ORDER BY b.created_at`,
+          [p.id, p.inquiry_id || '']
+        );
+        p.items = items;
+      }
+      delete p.inquiry_id;
+    }
     res.json({ staff: me, orders: rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff marks a rented item as picked up (issued) or returned - stock recount is automatic
+app.post('/api/staff/bookings/:id/status', async (req, res) => {
+  try {
+    const me = await staffFromToken(req);
+    if(!me) return res.status(401).json({ error: 'Unauthorized' });
+    const { status } = req.body;
+    if(!['issued','returned'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    // The booking must belong to a project assigned to me
+    const [rows] = await db.execute(
+      `SELECT b.id FROM bookings b
+       JOIN projects p ON (b.project_id = p.id OR (b.inquiry_id IS NOT NULL AND b.inquiry_id = p.inquiry_id))
+       WHERE b.id = ? AND p.assigned_staff_id = ?`,
+      [req.params.id, me.id]
+    );
+    if(!rows.length) return res.status(403).json({ error: 'This item is not on your order' });
+    await db.execute('UPDATE bookings SET status=? WHERE id=?', [status, req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff updates work progress on their order: picked_up -> installed -> done
+app.post('/api/staff/orders/:id/work-status', async (req, res) => {
+  try {
+    const me = await staffFromToken(req);
+    if(!me) return res.status(401).json({ error: 'Unauthorized' });
+    const { work_status } = req.body;
+    if(![null,'','picked_up','installed','done'].includes(work_status)) return res.status(400).json({ error: 'Invalid work status' });
+    const [result] = await db.execute(
+      'UPDATE projects SET work_status=? WHERE id=? AND assigned_staff_id=?',
+      [work_status || null, req.params.id, me.id]
+    );
+    if(!result.affectedRows) return res.status(403).json({ error: 'This order is not assigned to you' });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff view of warehouse inventory with live availability
+app.get('/api/staff/inventory', async (req, res) => {
+  try {
+    const me = await staffFromToken(req);
+    if(!me) return res.status(401).json({ error: 'Unauthorized' });
+    const [items] = await db.execute('SELECT id, name, category, total_qty FROM inventory ORDER BY category, name');
+    for(const item of items){
+      const [b] = await db.execute(
+        "SELECT SUM(qty_needed) as used FROM bookings WHERE item_id = ? AND status NOT IN ('cancelled','returned') AND event_date >= CURDATE()",
+        [item.id]
+      );
+      item.in_use = parseInt(b[0].used) || 0;
+      item.available = item.total_qty - item.in_use;
+    }
+    res.json(items);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff earnings: completed orders x pay_rate, payments received, balance
+app.get('/api/staff/earnings', async (req, res) => {
+  try {
+    const me = await staffFromToken(req);
+    if(!me) return res.status(401).json({ error: 'Unauthorized' });
+    const [st] = await db.execute('SELECT pay_rate FROM staff WHERE id=?', [me.id]);
+    const rate = parseFloat(st[0]?.pay_rate) || 0;
+    const [done] = await db.execute(
+      "SELECT COUNT(*) as cnt FROM projects WHERE assigned_staff_id=? AND status='completed'", [me.id]);
+    const [paid] = await db.execute(
+      'SELECT COALESCE(SUM(amount),0) as total FROM staff_payments WHERE staff_id=?', [me.id]);
+    const [payments] = await db.execute(
+      'SELECT amount, note, created_at FROM staff_payments WHERE staff_id=? ORDER BY created_at DESC LIMIT 30', [me.id]);
+    const completed = parseInt(done[0].cnt) || 0;
+    const earned = completed * rate;
+    const totalPaid = parseFloat(paid[0].total) || 0;
+    res.json({ pay_rate: rate, completed_orders: completed, earned, paid: totalPaid, balance: earned - totalPaid, payments });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== PAYROLL (admin) =====
+app.get('/api/payroll', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute(`
+      SELECT s.id, s.name, s.phone, s.active, s.pay_rate,
+        (SELECT COUNT(*) FROM projects p WHERE p.assigned_staff_id = s.id AND p.status = 'completed') as completed_orders,
+        (SELECT COALESCE(SUM(amount),0) FROM staff_payments sp WHERE sp.staff_id = s.id) as paid
+      FROM staff s ORDER BY s.name
+    `);
+    rows.forEach(r => {
+      r.pay_rate = parseFloat(r.pay_rate) || 0;
+      r.paid = parseFloat(r.paid) || 0;
+      r.earned = r.completed_orders * r.pay_rate;
+      r.balance = r.earned - r.paid;
+    });
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/staff/:id/payments', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { amount, note } = req.body;
+    if(!amount || isNaN(parseFloat(amount))) return res.status(400).json({ error: 'Amount is required' });
+    const id = 'pay_' + Date.now();
+    await db.execute('INSERT INTO staff_payments (id, staff_id, amount, note) VALUES (?,?,?,?)',
+      [id, req.params.id, parseFloat(amount), note||'']);
+    res.json({ success: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/staff/:id/payments', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute('SELECT * FROM staff_payments WHERE staff_id=? ORDER BY created_at DESC', [req.params.id]);
+    res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
