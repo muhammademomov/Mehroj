@@ -95,6 +95,32 @@ async function connectDB() {
     try { await db.execute('ALTER TABLE projects ADD COLUMN inquiry_id VARCHAR(50)'); } catch(e) {}
     // Add project_id column to bookings if not exists (for existing tables)
     try { await db.execute('ALTER TABLE bookings ADD COLUMN project_id VARCHAR(50)'); } catch(e) {}
+    // Staff member assigned to carry out the project
+    try { await db.execute('ALTER TABLE projects ADD COLUMN assigned_staff_id VARCHAR(50)'); } catch(e) {}
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS staff (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        phone VARCHAR(50),
+        login VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(200) NOT NULL,
+        token VARCHAR(100),
+        active TINYINT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS staff_responses (
+        id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50) NOT NULL,
+        staff_id VARCHAR(50) NOT NULL,
+        response VARCHAR(20) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_resp (project_id, staff_id)
+      )
+    `);
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS quotes (
@@ -491,7 +517,7 @@ app.delete('/api/booking/:id', async (req, res) => {
 app.get('/api/projects', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const [rows] = await db.execute('SELECT * FROM projects ORDER BY created_at DESC');
+    const [rows] = await db.execute('SELECT p.*, s.name as assigned_staff_name FROM projects p LEFT JOIN staff s ON p.assigned_staff_id = s.id ORDER BY p.created_at DESC');
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -522,10 +548,141 @@ app.post('/api/projects', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===== STAFF (admin CRUD) =====
+const crypto = require('crypto');
+
+app.get('/api/staff', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute('SELECT id, name, phone, login, active, created_at FROM staff ORDER BY name');
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/staff', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { name, phone, login, password } = req.body;
+    if(!name || !login || !password) return res.status(400).json({ error: 'name, login and password are required' });
+    const id = 'st_' + Date.now();
+    await db.execute('INSERT INTO staff (id, name, phone, login, password) VALUES (?,?,?,?,?)',
+      [id, name, phone||'', login, password]);
+    res.json({ success: true, id });
+  } catch(e) {
+    if(e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'This login is already taken' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/staff/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const fields = ['name','phone','login','password','active'];
+    const updates = fields.filter(f => req.body[f] !== undefined);
+    if(!updates.length) return res.json({ success: true });
+    const sql = 'UPDATE staff SET ' + updates.map(f => f+'=?').join(',') + ' WHERE id=?';
+    await db.execute(sql, [...updates.map(f => req.body[f]), req.params.id]);
+    res.json({ success: true });
+  } catch(e) {
+    if(e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'This login is already taken' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/staff/:id', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.execute('DELETE FROM staff WHERE id=?', [req.params.id]);
+    await db.execute('UPDATE projects SET assigned_staff_id=NULL WHERE assigned_staff_id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Responses of all staff for one project (admin view)
+app.get('/api/projects/:id/responses', async (req, res) => {
+  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute(
+      `SELECT r.*, s.name as staff_name, s.phone as staff_phone
+       FROM staff_responses r JOIN staff s ON r.staff_id = s.id
+       WHERE r.project_id = ? ORDER BY r.created_at`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== STAFF PORTAL (staff auth via token) =====
+async function staffFromToken(req){
+  const token = req.headers['x-staff-token'];
+  if(!token) return null;
+  const [rows] = await db.execute('SELECT id, name, phone, login, active FROM staff WHERE token=? AND active=1', [token]);
+  return rows[0] || null;
+}
+
+app.post('/api/staff/login', async (req, res) => {
+  try {
+    const { login, password } = req.body;
+    const [rows] = await db.execute('SELECT * FROM staff WHERE login=? AND password=? AND active=1', [login||'', password||'']);
+    if(!rows.length) return res.status(401).json({ error: 'Wrong login or password' });
+    const token = crypto.randomBytes(24).toString('hex');
+    await db.execute('UPDATE staff SET token=? WHERE id=?', [token, rows[0].id]);
+    res.json({ success: true, token, staff: { id: rows[0].id, name: rows[0].name } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Orders visible to staff: deposit-paid upcoming events, with my response and assignment info
+app.get('/api/staff/orders', async (req, res) => {
+  try {
+    const me = await staffFromToken(req);
+    if(!me) return res.status(401).json({ error: 'Unauthorized' });
+    const [rows] = await db.execute(
+      `SELECT p.id, p.client_name, p.event_type, p.event_date, p.event_time, p.event_address, p.location_type, p.notes,
+              p.assigned_staff_id, s.name as assigned_staff_name,
+              (SELECT response FROM staff_responses WHERE project_id=p.id AND staff_id=?) as my_response
+       FROM projects p
+       LEFT JOIN staff s ON p.assigned_staff_id = s.id
+       WHERE p.status = 'deposit_paid' AND (p.event_date IS NULL OR p.event_date >= CURDATE() - INTERVAL 1 DAY)
+       ORDER BY p.event_date ASC`,
+      [me.id]
+    );
+    res.json({ staff: me, orders: rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Staff responds to an order: accept | decline | busy
+app.post('/api/staff/orders/:id/respond', async (req, res) => {
+  try {
+    const me = await staffFromToken(req);
+    if(!me) return res.status(401).json({ error: 'Unauthorized' });
+    const { response } = req.body;
+    if(!['accept','decline','busy'].includes(response)) return res.status(400).json({ error: 'Invalid response' });
+    const rid = 'sr_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+    await db.execute(
+      `INSERT INTO staff_responses (id, project_id, staff_id, response) VALUES (?,?,?,?)
+       ON DUPLICATE KEY UPDATE response=VALUES(response), created_at=CURRENT_TIMESTAMP`,
+      [rid, req.params.id, me.id, response]
+    );
+    let assigned = false;
+    if(response === 'accept'){
+      // First to accept gets the job — only if nobody is assigned yet
+      const [result] = await db.execute(
+        'UPDATE projects SET assigned_staff_id=? WHERE id=? AND assigned_staff_id IS NULL',
+        [me.id, req.params.id]
+      );
+      assigned = result.affectedRows > 0;
+    } else {
+      // If I previously held this job and now can't do it, free it up
+      await db.execute('UPDATE projects SET assigned_staff_id=NULL WHERE id=? AND assigned_staff_id=?', [req.params.id, me.id]);
+    }
+    res.json({ success: true, assigned });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.patch('/api/projects/:id', async (req, res) => {
   if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const fields = ['client_name','client_email','client_phone','event_type','event_date','event_address','event_time','location_type','status','notes','source'];
+    const fields = ['client_name','client_email','client_phone','event_type','event_date','event_address','event_time','location_type','status','notes','source','assigned_staff_id'];
     const updates = fields.filter(f => req.body[f] !== undefined);
     if(!updates.length) return res.json({ success: true });
     const sql = 'UPDATE projects SET ' + updates.map(f => f+'=?').join(',') + ' WHERE id=?';
