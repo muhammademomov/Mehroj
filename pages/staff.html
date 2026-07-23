@@ -53,6 +53,29 @@
     .rbtn-busy.on,.rbtn-busy:hover{background:var(--amber);border-color:var(--amber);color:#fff}
     .empty{text-align:center;color:var(--gray);padding:3rem 1rem;font-size:14.5px}
     .empty-icon{font-size:2.2rem;margin-bottom:10px}
+    .tab-btn{flex:1;padding:11px 8px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray-l);background:#fff;color:var(--gray);font-family:var(--font-b)}
+    .tab-btn.on{background:var(--rose);border-color:var(--rose);color:#fff}
+    .item-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px dashed var(--gray-l)}
+    .item-name{font-size:13.5px;font-weight:600;flex:1}
+    .item-st{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:20px}
+    .st-booked{background:var(--rose-pale);color:var(--rose-dark)}
+    .st-issued{background:var(--amber-pale);color:var(--amber)}
+    .st-returned{background:var(--green-pale);color:var(--green)}
+    .ibtn{padding:8px 11px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray-l);background:#fff;font-family:var(--font-b)}
+    .ibtn-take{color:var(--amber)} .ibtn-take:hover{background:var(--amber);border-color:var(--amber);color:#fff}
+    .ibtn-ret{color:var(--green)} .ibtn-ret:hover{background:var(--green);border-color:var(--green);color:#fff}
+    .prog{display:flex;gap:6px;margin-top:12px}
+    .pbtn{flex:1;padding:10px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray-l);background:#fff;color:var(--gray);font-family:var(--font-b)}
+    .pbtn.done{background:var(--green);border-color:var(--green);color:#fff}
+    .wh-row{background:#fff;border:1.5px solid var(--gray-l);border-radius:12px;padding:13px 15px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center}
+    .wh-name{font-size:14px;font-weight:600}
+    .wh-cat{font-size:12px;color:var(--gray)}
+    .wh-qty{text-align:right;font-size:13px;font-weight:700}
+    .wh-av{color:var(--green)} .wh-av.low{color:var(--red)}
+    .pay-card{background:#fff;border:1.5px solid var(--gray-l);border-radius:14px;padding:18px;margin-bottom:12px}
+    .pay-big{font-family:var(--font-d);font-size:1.7rem;font-weight:700;color:var(--rose-dark)}
+    .pay-lbl{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--gray);letter-spacing:.04em}
+    .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   </style>
 </head>
 <body>
@@ -74,8 +97,23 @@
     <div class="hello"><div class="brand-dot"></div><span id="staff-name">Staff</span></div>
     <button class="out-btn" onclick="staffLogout()">Sign Out</button>
   </div>
-  <div class="section-title">Available Orders</div>
-  <div id="orders"><div class="empty">Loading…</div></div>
+  <div style="display:flex;gap:8px;margin-bottom:4px">
+    <button class="tab-btn on" id="tb-orders" onclick="switchStaffTab('orders')">📋 Orders</button>
+    <button class="tab-btn" id="tb-warehouse" onclick="switchStaffTab('warehouse')">📦 Warehouse</button>
+    <button class="tab-btn" id="tb-pay" onclick="switchStaffTab('pay')">💰 My Pay</button>
+  </div>
+  <div id="view-orders">
+    <div class="section-title">Available Orders</div>
+    <div id="orders"><div class="empty">Loading…</div></div>
+  </div>
+  <div id="view-warehouse" style="display:none">
+    <div class="section-title">Warehouse Stock</div>
+    <div id="warehouse"><div class="empty">Loading…</div></div>
+  </div>
+  <div id="view-pay" style="display:none">
+    <div class="section-title">My Earnings</div>
+    <div id="pay"><div class="empty">Loading…</div></div>
+  </div>
 </div>
 
 <script>
@@ -145,17 +183,48 @@ async function loadOrders(){
       if(mineAssigned) assignedHtml = '<div class="order-assigned as-me">✅ This order is yours</div>';
       else if(otherAssigned) assignedHtml = `<div class="order-assigned as-other">👤 Taken by ${o.assigned_staff_name||'another staff member'}</div>`;
       const r = o.my_response || '';
+      // Rented items with pick-up / return actions (only on my orders)
+      let itemsHtml = '';
+      if(mineAssigned && o.items && o.items.length){
+        const ST_LBL = { booked: '📋 Booked', issued: '🚚 With me', returned: '✅ Returned' };
+        itemsHtml = '<div style="margin-bottom:10px">' + o.items.map(it => {
+          const st = it.status || 'booked';
+          let btn = '';
+          if(st === 'booked' || !st) btn = `<button class="ibtn ibtn-take" onclick="itemStatus('${it.id}','issued')">📦 Picked up</button>`;
+          else if(st === 'issued') btn = `<button class="ibtn ibtn-ret" onclick="itemStatus('${it.id}','returned')">↩ Returned</button>`;
+          return `
+            <div class="item-row">
+              <div class="item-name">${it.item_name} × ${it.qty_needed}</div>
+              <span class="item-st st-${st}">${ST_LBL[st]||st}</span>
+              ${btn}
+            </div>`;
+        }).join('') + '</div>';
+      }
+      // Work progress: picked_up -> installed -> done
+      let progHtml = '';
+      if(mineAssigned){
+        const w = o.work_status || '';
+        const order = ['picked_up','installed','done'];
+        const idx = order.indexOf(w);
+        progHtml = `<div class="prog">
+          <button class="pbtn ${idx>=0?'done':''}" onclick="workStatus('${o.id}','picked_up')">📦 Picked up</button>
+          <button class="pbtn ${idx>=1?'done':''}" onclick="workStatus('${o.id}','installed')">🏗 Installed</button>
+          <button class="pbtn ${idx>=2?'done':''}" onclick="workStatus('${o.id}','done')">✅ Finished</button>
+        </div>`;
+      }
       return `
         <div class="order ${mineAssigned?'mine':''}">
           <div class="order-date">${d}</div>
           <div class="order-title">${o.event_type||'Event'} — ${o.client_name||'Client'}</div>
           ${meta ? `<div class="order-meta">${meta}</div>` : ''}
           ${assignedHtml}
+          ${itemsHtml}
           <div class="btns">
             <button class="rbtn rbtn-accept ${r==='accept'?'on':''}" ${otherAssigned?'disabled style="opacity:.4;cursor:not-allowed"':''} onclick="respond('${o.id}','accept')">✅ Accept</button>
             <button class="rbtn rbtn-decline ${r==='decline'?'on':''}" onclick="respond('${o.id}','decline')">❌ Can't do it</button>
             <button class="rbtn rbtn-busy ${r==='busy'?'on':''}" onclick="respond('${o.id}','busy')">📋 Have another order</button>
           </div>
+          ${progHtml}
         </div>
       `;
     }).join('');
@@ -177,6 +246,98 @@ async function respond(projectId, response){
     }
     loadOrders();
   } catch(e){ alert('Failed to send. Check your connection and try again.'); }
+}
+
+function switchStaffTab(name){
+  ['orders','warehouse','pay'].forEach(t => {
+    document.getElementById('view-'+t).style.display = t===name ? 'block' : 'none';
+    document.getElementById('tb-'+t).classList.toggle('on', t===name);
+  });
+  if(name === 'orders') loadOrders();
+  if(name === 'warehouse') loadWarehouse();
+  if(name === 'pay') loadPay();
+}
+
+async function itemStatus(bookingId, status){
+  try {
+    const res = await fetch(API_URL + '/api/staff/bookings/' + bookingId + '/status', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-staff-token': staffToken},
+      body: JSON.stringify({ status })
+    });
+    const data = await res.json();
+    if(!res.ok){ alert(data.error || 'Failed'); }
+    loadOrders();
+  } catch(e){ alert('Failed. Check your connection.'); }
+}
+
+async function workStatus(projectId, work_status){
+  try {
+    const res = await fetch(API_URL + '/api/staff/orders/' + projectId + '/work-status', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-staff-token': staffToken},
+      body: JSON.stringify({ work_status })
+    });
+    const data = await res.json();
+    if(!res.ok){ alert(data.error || 'Failed'); }
+    loadOrders();
+  } catch(e){ alert('Failed. Check your connection.'); }
+}
+
+async function loadWarehouse(){
+  const box = document.getElementById('warehouse');
+  try {
+    const res = await fetch(API_URL + '/api/staff/inventory', { headers: { 'x-staff-token': staffToken } });
+    if(res.status === 401){ staffLogout(); return; }
+    const items = await res.json();
+    if(!items.length){ box.innerHTML = '<div class="empty"><div class="empty-icon">📦</div>Warehouse is empty.</div>'; return; }
+    box.innerHTML = items.map(it => `
+      <div class="wh-row">
+        <div>
+          <div class="wh-name">${it.name}</div>
+          ${it.category ? `<div class="wh-cat">${it.category}</div>` : ''}
+        </div>
+        <div class="wh-qty">
+          <div class="wh-av ${it.available <= 0 ? 'low' : ''}">${it.available} available</div>
+          <div style="color:var(--gray);font-weight:500;font-size:12px">of ${it.total_qty} total</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e){ box.innerHTML = '<div class="empty">Failed to load warehouse.</div>'; }
+}
+
+async function loadPay(){
+  const box = document.getElementById('pay');
+  try {
+    const res = await fetch(API_URL + '/api/staff/earnings', { headers: { 'x-staff-token': staffToken } });
+    if(res.status === 401){ staffLogout(); return; }
+    const d = await res.json();
+    const fmt = n => '$' + (parseFloat(n)||0).toFixed(2);
+    box.innerHTML = `
+      <div class="pay-card">
+        <div class="pay-lbl">Balance (to be paid)</div>
+        <div class="pay-big">${fmt(d.balance)}</div>
+      </div>
+      <div class="pay-grid">
+        <div class="pay-card"><div class="pay-lbl">Rate per order</div><div style="font-size:1.2rem;font-weight:700">${fmt(d.pay_rate)}</div></div>
+        <div class="pay-card"><div class="pay-lbl">Completed orders</div><div style="font-size:1.2rem;font-weight:700">${d.completed_orders}</div></div>
+        <div class="pay-card"><div class="pay-lbl">Total earned</div><div style="font-size:1.2rem;font-weight:700">${fmt(d.earned)}</div></div>
+        <div class="pay-card"><div class="pay-lbl">Already paid</div><div style="font-size:1.2rem;font-weight:700">${fmt(d.paid)}</div></div>
+      </div>
+      ${d.payments && d.payments.length ? `
+        <div class="section-title">Payment History</div>
+        ${d.payments.map(p => `
+          <div class="wh-row">
+            <div>
+              <div class="wh-name">${fmt(p.amount)}</div>
+              ${p.note ? `<div class="wh-cat">${p.note}</div>` : ''}
+            </div>
+            <div class="wh-cat">${new Date(p.created_at).toLocaleDateString()}</div>
+          </div>
+        `).join('')}
+      ` : ''}
+    `;
+  } catch(e){ box.innerHTML = '<div class="empty">Failed to load earnings.</div>'; }
 }
 
 if(staffToken) showPortal();
