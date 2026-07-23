@@ -317,6 +317,9 @@
         <button class="sid-btn" onclick="showTab('inquiries',this)" id="inq-btn">
           <span class="sid-icon">📋</span> Inquiries <span class="inq-count" id="new-count" style="display:none">0</span>
         </button>
+        <button class="sid-btn" onclick="showTab('staff',this)">
+          <span class="sid-icon">👥</span> Staff
+        </button>
         <button class="sid-btn" onclick="showTab('inventory',this)">
           <span class="sid-icon">📦</span> Inventory
         </button>
@@ -438,6 +441,20 @@
           <div style="text-align:center;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase">Sat</div>
         </div>
         <div id="calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+        </div>
+      </div>
+
+      <!-- STAFF TAB -->
+      <div class="tab" id="tab-staff">
+        <div class="tab-hdr">
+          <div>
+            <div class="tab-title">Staff</div>
+            <div class="tab-sub">Team members who carry out orders · portal: <a href="../pages/staff.html" target="_blank" style="color:var(--rose)">pages/staff.html</a></div>
+          </div>
+          <button class="add-btn" onclick="openStaffModal(null)">+ Add Staff</button>
+        </div>
+        <div id="staff-list">
+          <div style="color:var(--gray);padding:2rem;text-align:center">Loading staff...</div>
         </div>
       </div>
 
@@ -698,6 +715,7 @@ function showTab(name,btn){
   btn.classList.add('active');
   if(name === 'inquiries') loadInquiries();
   if(name === 'calendar') loadCalendarView();
+  if(name === 'staff') loadStaff();
 }
 
 // ===== DELETE =====
@@ -739,6 +757,7 @@ function closeModal(){
 }
 
 async function confirmModal(){
+  if(CM.type === 'staff'){ await saveStaffFromModal(); return; }
   // Handle project
   if(CM.type === 'project'){
     const data = {
@@ -1530,11 +1549,7 @@ function calendarShiftMonth(delta){
 }
 
 function openProjectFromCalendar(id){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.sid-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-projects').classList.add('active');
-  const projBtn = Array.from(document.querySelectorAll('.sid-btn')).find(b => b.getAttribute('onclick') === "showTab('projects',this)");
-  if(projBtn) projBtn.classList.add('active');
+  // Open the project side panel right over the calendar - stay on the calendar tab
   openProject(id);
 }
 
@@ -1573,7 +1588,7 @@ function renderCalendar(){
         <div style="font-size:12px;font-weight:700;color:${isToday?'var(--rose)':'var(--gray)'}">${day}</div>
         ${events.map(p => `
           <div onclick="openProjectFromCalendar('${p.id}')" style="cursor:pointer;background:var(--rose-pale);border:1px solid var(--rose-light);border-radius:6px;padding:4px 6px;font-size:11px;font-weight:600;color:var(--rose-dark);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(p.client_name||'Client').replace(/"/g,'&quot;')} — ${p.event_type||''}">
-            💚 ${p.client_name||'Client'}
+            💚 ${p.client_name||'Client'}${p.assigned_staff_name ? ' · 👤 '+p.assigned_staff_name : ''}
           </div>
         `).join('')}
       </div>
@@ -1585,6 +1600,129 @@ function renderCalendar(){
 async function loadCalendarView(){
   await loadProjects();
   renderCalendar();
+}
+
+// ===== STAFF =====
+let allStaff = [];
+
+async function loadStaff(){
+  try {
+    const res = await fetch(API_URL + '/api/staff', { headers: { 'x-admin-secret': ADMIN_SECRET } });
+    allStaff = await res.json();
+    renderStaff();
+  } catch(e){ console.log('Failed to load staff', e); }
+}
+
+function renderStaff(){
+  const list = document.getElementById('staff-list');
+  if(!list) return;
+  if(!allStaff.length){
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><p>No staff yet.<br>Add your first team member!</p></div>';
+    return;
+  }
+  list.innerHTML = allStaff.map(s => `
+    <div class="list-row">
+      <div class="list-row-body">
+        <div class="list-row-title">${s.name} ${s.active ? '' : '<span style="color:var(--red);font-size:12px">(disabled)</span>'}</div>
+        <div class="list-row-sub">Login: ${s.login}${s.phone ? ' · 📞 ' + s.phone : ''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        <button class="btn-edit" onclick="openStaffModal('${s.id}')">✏ Edit</button>
+        <button class="btn-del" onclick="deleteStaff('${s.id}')">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openStaffModal(id){
+  const s = id ? allStaff.find(x => x.id === id) : null;
+  CM = { type: 'staff', idx: id };
+  document.getElementById('modal-title').textContent = s ? 'Edit Staff' : 'Add Staff';
+  document.getElementById('modal-body').innerHTML = `
+  <div class="form-grid">
+    <div class="fg full"><label>Name *</label><input type="text" id="stf-name" value="${s ? s.name.replace(/"/g,'&quot;') : ''}" placeholder="John Smith"></div>
+    <div class="fg"><label>Phone</label><input type="text" id="stf-phone" value="${s ? (s.phone||'').replace(/"/g,'&quot;') : ''}" placeholder="+1 202 555 0100"></div>
+    <div class="fg"><label>Login *</label><input type="text" id="stf-login" value="${s ? s.login.replace(/"/g,'&quot;') : ''}" placeholder="john"></div>
+    <div class="fg full"><label>Password ${s ? '(leave empty to keep current)' : '*'}</label><input type="text" id="stf-pass" value="" placeholder="${s ? '••••••' : 'password'}"></div>
+    ${s ? `<div class="fg full"><label>Active</label><select id="stf-active"><option value="1" ${s.active?'selected':''}>✅ Active</option><option value="0" ${!s.active?'selected':''}>⛔ Disabled</option></select></div>` : ''}
+  </div>
+  `;
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+async function saveStaffFromModal(){
+  const id = CM.idx;
+  const data = {
+    name: document.getElementById('stf-name').value.trim(),
+    phone: document.getElementById('stf-phone').value.trim(),
+    login: document.getElementById('stf-login').value.trim()
+  };
+  const pass = document.getElementById('stf-pass').value;
+  if(pass) data.password = pass;
+  const activeSel = document.getElementById('stf-active');
+  if(activeSel) data.active = parseInt(activeSel.value);
+  if(!data.name || !data.login || (!id && !pass)){ alert('Name, login and password are required'); return; }
+  try {
+    const url = id ? API_URL+'/api/staff/'+id : API_URL+'/api/staff';
+    const res = await fetch(url, {
+      method: id ? 'PATCH' : 'POST',
+      headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET},
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if(!res.ok){ alert(result.error || 'Save failed'); return; }
+    closeModal();
+    loadStaff();
+  } catch(e){ alert('Save failed'); }
+}
+
+async function deleteStaff(id){
+  if(!confirm('Delete this staff member? Their assigned orders will become unassigned.')) return;
+  try {
+    await fetch(API_URL + '/api/staff/' + id, { method: 'DELETE', headers: { 'x-admin-secret': ADMIN_SECRET } });
+    loadStaff();
+  } catch(e){ console.log('Delete staff failed', e); }
+}
+
+async function loadProjectStaffUI(proj){
+  if(!proj) return;
+  if(!allStaff.length){ try { const r = await fetch(API_URL+'/api/staff',{headers:{'x-admin-secret':ADMIN_SECRET}}); allStaff = await r.json(); } catch(e){} }
+  const sel = document.getElementById('proj-staff-select');
+  if(sel){
+    sel.innerHTML = '<option value="">— Not assigned —</option>' +
+      allStaff.filter(s => s.active).map(s => `<option value="${s.id}" ${proj.assigned_staff_id===s.id?'selected':''}>${s.name}</option>`).join('');
+  }
+  const box = document.getElementById('proj-staff-responses');
+  if(box){
+    try {
+      const res = await fetch(API_URL + '/api/projects/' + proj.id + '/responses', { headers: { 'x-admin-secret': ADMIN_SECRET } });
+      const responses = await res.json();
+      if(responses.length){
+        const RESP_LABELS = { accept: '✅ Accepted', decline: "❌ Can't do it", busy: '📋 Has another order' };
+        box.innerHTML = '<div style="font-weight:700;font-size:12px;margin-bottom:4px">Responses:</div>' +
+          responses.map(r => `<div>${r.staff_name} — ${RESP_LABELS[r.response]||r.response}</div>`).join('');
+      } else {
+        box.innerHTML = '<span style="font-size:12px">No responses from staff yet</span>';
+      }
+    } catch(e){ box.innerHTML = ''; }
+  }
+}
+
+async function assignStaff(projectId, staffId){
+  try {
+    await fetch(API_URL + '/api/projects/' + projectId, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET},
+      body: JSON.stringify({ assigned_staff_id: staffId || null })
+    });
+    const p = allProjects.find(x => x.id === projectId);
+    if(p){
+      p.assigned_staff_id = staffId || null;
+      const s = allStaff.find(x => x.id === staffId);
+      p.assigned_staff_name = s ? s.name : null;
+    }
+    renderCalendar();
+  } catch(e){ console.log('Assign failed', e); }
 }
 
 function renderProjects(){
@@ -1608,7 +1746,7 @@ function renderProjects(){
         <span class="proj-status ${st.css}">${st.label}</span>
         <div class="proj-info">
           <div class="proj-name">${p.client_name || 'Unknown Client'}</div>
-          <div class="proj-meta">${p.event_type||''} ${p.event_address ? '· '+p.event_address : ''}</div>
+          <div class="proj-meta">${p.event_type||''} ${p.event_address ? '· '+p.event_address : ''}${p.assigned_staff_name ? ' · 👤 '+p.assigned_staff_name : ''}</div>
         </div>
         <div class="proj-date">${date}</div>
       </div>
@@ -1646,6 +1784,8 @@ async function openProject(id){
   loadProjectBookings(id);
   if(allInventory.length) populateInventorySelect();
   else loadInventory().then(() => populateInventorySelect());
+  // Staff assignment + responses
+  loadProjectStaffUI(proj);
 }
 
 function buildProjectPanel(p){
@@ -1671,6 +1811,12 @@ function buildProjectPanel(p){
       <button class="btn-edit" onclick="editProject('${p.id}')" style="flex:1">✏ Edit</button>
       <button class="btn-del" onclick="deleteProject('${p.id}')">🗑 Delete</button>
     </div>
+    <hr class="panel-divider">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin-bottom:8px">Assigned Staff</div>
+    <select id="proj-staff-select" onchange="assignStaff('${p.id}',this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-l);border-radius:8px;font-size:14px;font-family:var(--font-b);font-weight:600;outline:none;margin-bottom:8px">
+      <option value="">— Not assigned —</option>
+    </select>
+    <div id="proj-staff-responses" style="font-size:13px;color:var(--gray)"></div>
     <hr class="panel-divider">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin-bottom:10px">Quotes</div>
     <div id="proj-quotes-list">Loading...</div>
