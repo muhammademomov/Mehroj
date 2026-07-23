@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Portal — GlowUp Rentals</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --rose:#C8536A;--rose-dark:#9E3A50;--rose-pale:#FDF0F2;--rose-light:#F2C4CE;
+      --dark:#1A1118;--gray:#6B5B62;--gray-l:#D6C8CC;--white:#fff;--off:#FBF7F8;
+      --green:#2E7D52;--green-pale:#E8F5EE;--red:#C0392B;--red-pale:#FBEAE8;--amber:#B7791F;--amber-pale:#FCF3E3;
+      --font-d:'Playfair Display',serif;--font-b:'Inter',sans-serif;
+    }
+    body{font-family:var(--font-b);background:var(--off);color:var(--dark);min-height:100vh}
+
+    /* LOGIN */
+    #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--rose-pale),#FAE6EB);padding:16px}
+    .login-box{background:#fff;border-radius:20px;padding:2.2rem;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(200,83,106,0.15);text-align:center}
+    .login-logo{width:60px;height:60px;border-radius:50%;margin:0 auto 1.2rem;background:linear-gradient(135deg,var(--rose),var(--rose-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-family:var(--font-d);font-weight:700}
+    .login-box h2{font-family:var(--font-d);font-size:1.4rem;margin-bottom:6px}
+    .login-box p{font-size:14px;color:var(--gray);margin-bottom:1.6rem}
+    .login-box input{width:100%;padding:13px 14px;border:1.5px solid var(--gray-l);border-radius:10px;font-size:16px;font-family:var(--font-b);margin-bottom:12px;outline:none}
+    .login-box input:focus{border-color:var(--rose)}
+    .login-btn{width:100%;padding:14px;background:var(--rose);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font-b)}
+    .login-btn:hover{background:var(--rose-dark)}
+    .login-error{color:var(--red);font-size:13px;margin-top:10px;display:none}
+
+    /* PORTAL */
+    #portal{display:none;max-width:640px;margin:0 auto;padding:0 14px 40px}
+    .topbar{position:sticky;top:0;z-index:50;background:var(--off);padding:14px 0;display:flex;align-items:center;justify-content:space-between}
+    .hello{font-family:var(--font-d);font-weight:700;font-size:1.15rem;display:flex;align-items:center;gap:8px}
+    .brand-dot{width:10px;height:10px;border-radius:50%;background:var(--rose)}
+    .out-btn{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:none;color:var(--gray);border:1px solid var(--gray-l);font-family:var(--font-b)}
+    .section-title{font-size:13px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 10px}
+
+    .order{background:#fff;border:1.5px solid var(--gray-l);border-radius:14px;padding:16px;margin-bottom:12px}
+    .order.mine{border-color:var(--green)}
+    .order-date{font-size:13px;font-weight:700;color:var(--rose-dark);margin-bottom:4px}
+    .order-title{font-family:var(--font-d);font-weight:700;font-size:1.05rem;margin-bottom:6px}
+    .order-meta{font-size:13.5px;color:var(--gray);line-height:1.6;margin-bottom:12px;white-space:pre-line}
+    .order-assigned{font-size:13px;font-weight:600;padding:7px 10px;border-radius:8px;margin-bottom:12px;display:inline-block}
+    .as-me{background:var(--green-pale);color:var(--green)}
+    .as-other{background:var(--amber-pale);color:var(--amber)}
+    .btns{display:flex;gap:8px;flex-wrap:wrap}
+    .rbtn{flex:1;min-width:100px;padding:12px 10px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray-l);background:#fff;font-family:var(--font-b);transition:all .15s}
+    .rbtn-accept{color:var(--green)}
+    .rbtn-accept.on,.rbtn-accept:hover{background:var(--green);border-color:var(--green);color:#fff}
+    .rbtn-decline{color:var(--red)}
+    .rbtn-decline.on,.rbtn-decline:hover{background:var(--red);border-color:var(--red);color:#fff}
+    .rbtn-busy{color:var(--amber)}
+    .rbtn-busy.on,.rbtn-busy:hover{background:var(--amber);border-color:var(--amber);color:#fff}
+    .empty{text-align:center;color:var(--gray);padding:3rem 1rem;font-size:14.5px}
+    .empty-icon{font-size:2.2rem;margin-bottom:10px}
+  </style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">G</div>
+    <h2>Staff Portal</h2>
+    <p>Sign in to see available orders</p>
+    <input type="text" id="sl" placeholder="Login" autocomplete="username">
+    <input type="password" id="sp" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')staffLogin()">
+    <button class="login-btn" onclick="staffLogin()">Sign In →</button>
+    <p class="login-error" id="serr">Wrong login or password</p>
+  </div>
+</div>
+
+<div id="portal">
+  <div class="topbar">
+    <div class="hello"><div class="brand-dot"></div><span id="staff-name">Staff</span></div>
+    <button class="out-btn" onclick="staffLogout()">Sign Out</button>
+  </div>
+  <div class="section-title">Available Orders</div>
+  <div id="orders"><div class="empty">Loading…</div></div>
+</div>
+
+<script>
+const API_URL = 'https://mehroj-production.up.railway.app';
+let staffToken = localStorage.getItem('glowup_staff_token') || '';
+let staffName = localStorage.getItem('glowup_staff_name') || '';
+let myId = localStorage.getItem('glowup_staff_id') || '';
+
+async function staffLogin(){
+  const login = document.getElementById('sl').value.trim();
+  const password = document.getElementById('sp').value;
+  document.getElementById('serr').style.display = 'none';
+  try {
+    const res = await fetch(API_URL + '/api/staff/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ login, password })
+    });
+    const data = await res.json();
+    if(!res.ok || !data.success){ document.getElementById('serr').style.display = 'block'; return; }
+    staffToken = data.token; staffName = data.staff.name; myId = data.staff.id;
+    localStorage.setItem('glowup_staff_token', staffToken);
+    localStorage.setItem('glowup_staff_name', staffName);
+    localStorage.setItem('glowup_staff_id', myId);
+    showPortal();
+  } catch(e){ document.getElementById('serr').style.display = 'block'; }
+}
+
+function staffLogout(){
+  localStorage.removeItem('glowup_staff_token');
+  localStorage.removeItem('glowup_staff_name');
+  localStorage.removeItem('glowup_staff_id');
+  staffToken = ''; staffName = ''; myId = '';
+  document.getElementById('portal').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showPortal(){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('portal').style.display = 'block';
+  document.getElementById('staff-name').textContent = staffName;
+  loadOrders();
+}
+
+async function loadOrders(){
+  const box = document.getElementById('orders');
+  try {
+    const res = await fetch(API_URL + '/api/staff/orders', { headers: { 'x-staff-token': staffToken } });
+    if(res.status === 401){ staffLogout(); return; }
+    const data = await res.json();
+    myId = data.staff.id;
+    const orders = data.orders || [];
+    if(!orders.length){
+      box.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>No orders right now.<br>Check back later!</div>';
+      return;
+    }
+    box.innerHTML = orders.map(o => {
+      const d = o.event_date ? new Date(o.event_date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Date TBD';
+      const meta = [
+        o.event_address ? '📍 ' + o.event_address : '',
+        o.event_time ? '🕐 ' + o.event_time : '',
+        o.location_type ? '🏠 ' + o.location_type : '',
+        o.notes ? '📝 ' + o.notes : ''
+      ].filter(Boolean).join('\n');
+      const mineAssigned = o.assigned_staff_id === myId;
+      const otherAssigned = o.assigned_staff_id && !mineAssigned;
+      let assignedHtml = '';
+      if(mineAssigned) assignedHtml = '<div class="order-assigned as-me">✅ This order is yours</div>';
+      else if(otherAssigned) assignedHtml = `<div class="order-assigned as-other">👤 Taken by ${o.assigned_staff_name||'another staff member'}</div>`;
+      const r = o.my_response || '';
+      return `
+        <div class="order ${mineAssigned?'mine':''}">
+          <div class="order-date">${d}</div>
+          <div class="order-title">${o.event_type||'Event'} — ${o.client_name||'Client'}</div>
+          ${meta ? `<div class="order-meta">${meta}</div>` : ''}
+          ${assignedHtml}
+          <div class="btns">
+            <button class="rbtn rbtn-accept ${r==='accept'?'on':''}" ${otherAssigned?'disabled style="opacity:.4;cursor:not-allowed"':''} onclick="respond('${o.id}','accept')">✅ Accept</button>
+            <button class="rbtn rbtn-decline ${r==='decline'?'on':''}" onclick="respond('${o.id}','decline')">❌ Can't do it</button>
+            <button class="rbtn rbtn-busy ${r==='busy'?'on':''}" onclick="respond('${o.id}','busy')">📋 Have another order</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e){
+    box.innerHTML = '<div class="empty">Failed to load orders. Pull to refresh or try again later.</div>';
+  }
+}
+
+async function respond(projectId, response){
+  try {
+    const res = await fetch(API_URL + '/api/staff/orders/' + projectId + '/respond', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-staff-token': staffToken},
+      body: JSON.stringify({ response })
+    });
+    const data = await res.json();
+    if(response === 'accept' && data.success && !data.assigned){
+      alert('Someone already took this order — it may have just been assigned.');
+    }
+    loadOrders();
+  } catch(e){ alert('Failed to send. Check your connection and try again.'); }
+}
+
+if(staffToken) showPortal();
+</script>
+</body>
+</html>
