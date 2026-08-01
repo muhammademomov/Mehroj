@@ -133,16 +133,31 @@ async function submitForm(e){
   if(checked.length) formData['Rental Items'] = checked.join(', ');
   formData.submittedAt = new Date().toLocaleString();
 
+  const submitBtn = document.querySelector('#form-container button[type=submit], #form-container .submit-btn, #form-container button');
+  if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Sending...'; }
   try {
-    await fetch('https://mehroj-production.up.railway.app/api/inquiry', {
+    const res = await fetch('https://mehroj-production.up.railway.app/api/inquiry', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
     });
-  } catch(err) { console.log('Error:', err); }
-
-  document.getElementById('form-container').style.display='none';
-  document.getElementById('form-success').style.display='block';
+    if(!res.ok) throw new Error('Server error ' + res.status);
+    // Success - only now show the thank-you screen
+    document.getElementById('form-container').style.display='none';
+    document.getElementById('form-success').style.display='block';
+  } catch(err) {
+    console.log('Error:', err);
+    if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Submit Inquiry'; }
+    let errBox = document.getElementById('form-error');
+    if(!errBox){
+      errBox = document.createElement('div');
+      errBox.id = 'form-error';
+      errBox.style.cssText = 'margin-top:14px;padding:14px;border-radius:10px;background:#FBEAE8;color:#C0392B;font-size:14.5px;line-height:1.5;text-align:center';
+      document.getElementById('form-container').appendChild(errBox);
+    }
+    errBox.innerHTML = '⚠️ Something went wrong and your inquiry was NOT sent.<br>Please try again in a minute, or call/text us directly at <b>571-786-1516</b>.';
+    errBox.scrollIntoView({behavior:'smooth', block:'center'});
+  }
 }
 document.getElementById('hamburger').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('open'));
 function closeMobile(){document.getElementById('mobile-menu').classList.remove('open')}
