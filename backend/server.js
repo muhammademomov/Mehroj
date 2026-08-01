@@ -13,13 +13,22 @@ app.use(express.json({ limit: '50mb' }));
 let db;
 async function connectDB() {
   try {
-    db = await mysql.createConnection({
+    // Connection POOL: survives idle disconnects (Railway/MySQL kill idle connections),
+    // reconnects automatically - fixes the "works after restart, dies later" problem
+    db = mysql.createPool({
       host: process.env.MYSQLHOST,
       user: process.env.MYSQLUSER,
       password: process.env.MYSQLPASSWORD,
       database: process.env.MYSQLDATABASE,
-      port: process.env.MYSQLPORT || 3306
+      port: process.env.MYSQLPORT || 3306,
+      waitForConnections: true,
+      connectionLimit: 10,
+      maxIdle: 5,
+      idleTimeout: 60000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
     });
+    await db.execute('SELECT 1');
     console.log('MySQL connected!');
 
     // Create tables
@@ -99,9 +108,6 @@ async function connectDB() {
     try { await db.execute('ALTER TABLE projects ADD COLUMN assigned_staff_id VARCHAR(50)'); } catch(e) {}
     // Staff work progress on the assigned order: picked_up -> installed -> done
     try { await db.execute("ALTER TABLE projects ADD COLUMN work_status VARCHAR(30)"); } catch(e) {}
-    // Pay per completed order
-    try { await db.execute('ALTER TABLE staff ADD COLUMN pay_rate DECIMAL(10,2) DEFAULT 0'); } catch(e) {}
-
     await db.execute(`
       CREATE TABLE IF NOT EXISTS staff_payments (
         id VARCHAR(50) PRIMARY KEY,
@@ -121,9 +127,12 @@ async function connectDB() {
         password VARCHAR(200) NOT NULL,
         token VARCHAR(100),
         active TINYINT DEFAULT 1,
+        pay_rate DECIMAL(10,2) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // Pay per completed order (for staff tables created by older versions)
+    try { await db.execute('ALTER TABLE staff ADD COLUMN pay_rate DECIMAL(10,2) DEFAULT 0'); } catch(e) {}
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS staff_responses (
