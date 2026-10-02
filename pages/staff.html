@@ -118,6 +118,14 @@
 
 <script>
 const API_URL = 'https://mehroj-production.up.railway.app';
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+// 'YYYY-MM-DD' -> local date (new Date('YYYY-MM-DD') is UTC and shows the previous day in the US)
+function parseDay(d){
+  const m = String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(d);
+}
 let staffToken = localStorage.getItem('glowup_staff_token') || '';
 let staffName = localStorage.getItem('glowup_staff_name') || '';
 let myId = localStorage.getItem('glowup_staff_id') || '';
@@ -163,6 +171,7 @@ async function loadOrders(){
     const res = await fetch(API_URL + '/api/staff/orders', { headers: { 'x-staff-token': staffToken } });
     if(res.status === 401){ staffLogout(); return; }
     const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Failed');
     myId = data.staff.id;
     const orders = data.orders || [];
     if(!orders.length){
@@ -170,32 +179,33 @@ async function loadOrders(){
       return;
     }
     box.innerHTML = orders.map(o => {
-      const d = o.event_date ? new Date(o.event_date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Date TBD';
+      const d = o.event_date ? parseDay(o.event_date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Date TBD';
       const meta = [
-        o.event_address ? '📍 ' + o.event_address : '',
-        o.event_time ? '🕐 ' + o.event_time : '',
-        o.location_type ? '🏠 ' + o.location_type : '',
-        o.notes ? '📝 ' + o.notes : ''
+        o.event_address ? '📍 ' + esc(o.event_address) : '',
+        o.event_time ? '🕐 ' + esc(o.event_time) : '',
+        o.location_type ? '🏠 ' + esc(o.location_type) : '',
+        o.notes ? '📝 ' + esc(o.notes) : ''
       ].filter(Boolean).join('\n');
       const mineAssigned = o.assigned_staff_id === myId;
       const otherAssigned = o.assigned_staff_id && !mineAssigned;
       let assignedHtml = '';
       if(mineAssigned) assignedHtml = '<div class="order-assigned as-me">✅ This order is yours</div>';
-      else if(otherAssigned) assignedHtml = `<div class="order-assigned as-other">👤 Taken by ${o.assigned_staff_name||'another staff member'}</div>`;
+      else if(otherAssigned) assignedHtml = `<div class="order-assigned as-other">👤 Taken by ${esc(o.assigned_staff_name||'another staff member')}</div>`;
       const r = o.my_response || '';
       // Rented items with pick-up / return actions (only on my orders)
       let itemsHtml = '';
       if(mineAssigned && o.items && o.items.length){
         const ST_LBL = { booked: '📋 Booked', issued: '🚚 With me', returned: '✅ Returned' };
         itemsHtml = '<div style="margin-bottom:10px">' + o.items.map(it => {
-          const st = it.status || 'booked';
+          const st = (!it.status || it.status === 'pending') ? 'booked' : it.status;
+          if(st === 'cancelled') return '';
           let btn = '';
           if(st === 'booked' || !st) btn = `<button class="ibtn ibtn-take" onclick="itemStatus('${it.id}','issued')">📦 Picked up</button>`;
           else if(st === 'issued') btn = `<button class="ibtn ibtn-ret" onclick="itemStatus('${it.id}','returned')">↩ Returned</button>`;
           return `
             <div class="item-row">
-              <div class="item-name">${it.item_name} × ${it.qty_needed}</div>
-              <span class="item-st st-${st}">${ST_LBL[st]||st}</span>
+              <div class="item-name">${esc(it.item_name)} × ${esc(it.qty_needed)}</div>
+              <span class="item-st st-${esc(st)}">${ST_LBL[st]||esc(st)}</span>
               ${btn}
             </div>`;
         }).join('') + '</div>';
@@ -215,7 +225,7 @@ async function loadOrders(){
       return `
         <div class="order ${mineAssigned?'mine':''}">
           <div class="order-date">${d}</div>
-          <div class="order-title">${o.event_type||'Event'} — ${o.client_name||'Client'}</div>
+          <div class="order-title">${esc(o.event_type||'Event')} — ${esc(o.client_name||'Client')}</div>
           ${meta ? `<div class="order-meta">${meta}</div>` : ''}
           ${assignedHtml}
           ${itemsHtml}
@@ -241,6 +251,7 @@ async function respond(projectId, response){
       body: JSON.stringify({ response })
     });
     const data = await res.json();
+    if(!res.ok){ alert(data.error || 'Failed'); loadOrders(); return; }
     if(response === 'accept' && data.success && !data.assigned){
       alert('Someone already took this order — it may have just been assigned.');
     }
@@ -290,12 +301,13 @@ async function loadWarehouse(){
     const res = await fetch(API_URL + '/api/staff/inventory', { headers: { 'x-staff-token': staffToken } });
     if(res.status === 401){ staffLogout(); return; }
     const items = await res.json();
+    if(!res.ok) throw new Error(items.error || 'Failed');
     if(!items.length){ box.innerHTML = '<div class="empty"><div class="empty-icon">📦</div>Warehouse is empty.</div>'; return; }
     box.innerHTML = items.map(it => `
       <div class="wh-row">
         <div>
-          <div class="wh-name">${it.name}</div>
-          ${it.category ? `<div class="wh-cat">${it.category}</div>` : ''}
+          <div class="wh-name">${esc(it.name)}</div>
+          ${it.category ? `<div class="wh-cat">${esc(it.category)}</div>` : ''}
         </div>
         <div class="wh-qty">
           <div class="wh-av ${it.available <= 0 ? 'low' : ''}">${it.available} available</div>
@@ -312,7 +324,8 @@ async function loadPay(){
     const res = await fetch(API_URL + '/api/staff/earnings', { headers: { 'x-staff-token': staffToken } });
     if(res.status === 401){ staffLogout(); return; }
     const d = await res.json();
-    const fmt = n => '$' + (parseFloat(n)||0).toFixed(2);
+    if(!res.ok) throw new Error(d.error || 'Failed');
+    const fmt = n => { const v = parseFloat(n)||0; return (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2); };
     box.innerHTML = `
       <div class="pay-card">
         <div class="pay-lbl">Balance (to be paid)</div>
@@ -330,7 +343,7 @@ async function loadPay(){
           <div class="wh-row">
             <div>
               <div class="wh-name">${fmt(p.amount)}</div>
-              ${p.note ? `<div class="wh-cat">${p.note}</div>` : ''}
+              ${p.note ? `<div class="wh-cat">${esc(p.note)}</div>` : ''}
             </div>
             <div class="wh-cat">${new Date(p.created_at).toLocaleDateString()}</div>
           </div>

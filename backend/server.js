@@ -1,13 +1,61 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'glowup2024';
+// Optional static key for scripts/integrations. Only honored when explicitly set in the environment -
+// the admin panel itself signs in with a username/password and gets a session token.
+const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+const ADMIN_SESSION_DAYS = 30;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '5mb' }));
+
+// ===== AUTH HELPERS =====
+function hashPassword(password){
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return 'scrypt$' + salt + '$' + hash;
+}
+function verifyPassword(password, stored){
+  if(!stored) return false;
+  if(!stored.startsWith('scrypt$')) return String(password) === stored; // legacy plain-text value
+  const [, salt, hash] = stored.split('$');
+  const test = crypto.scryptSync(String(password), salt, 64);
+  const expected = Buffer.from(hash, 'hex');
+  return expected.length === test.length && crypto.timingSafeEqual(expected, test);
+}
+function newId(prefix){ return prefix + Date.now() + '_' + crypto.randomBytes(4).toString('hex'); }
+
+// Simple brute-force protection for login endpoints: 10 failed attempts per IP per 15 minutes
+const failedLogins = new Map();
+function tooManyFailures(req){
+  const rec = failedLogins.get(req.ip);
+  if(!rec) return false;
+  if(Date.now() - rec.first > 15*60*1000){ failedLogins.delete(req.ip); return false; }
+  return rec.count >= 10;
+}
+function recordFailure(req){
+  const rec = failedLogins.get(req.ip);
+  if(!rec || Date.now() - rec.first > 15*60*1000) failedLogins.set(req.ip, { count: 1, first: Date.now() });
+  else rec.count++;
+}
+
+async function isAdmin(req){
+  if(ADMIN_SECRET && req.headers['x-admin-secret'] === ADMIN_SECRET) return true;
+  const token = req.headers['x-admin-token'];
+  if(!token || !db) return false;
+  try {
+    const [rows] = await db.execute(
+      'SELECT token FROM admin_sessions WHERE token=? AND created_at > NOW() - INTERVAL ' + ADMIN_SESSION_DAYS + ' DAY', [token]);
+    return rows.length > 0;
+  } catch(e) { return false; }
+}
+
+const PROJECT_STATUSES = ['new','quote_sent','confirmed','deposit_paid','completed','cancelled'];
+const BOOKING_STATUSES = ['booked','issued','returned','cancelled'];
 
 // MySQL connection
 let db;
@@ -26,7 +74,10 @@ async function connectDB() {
       maxIdle: 5,
       idleTimeout: 60000,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
+      keepAliveInitialDelay: 10000,
+      // Return DATE columns as plain 'YYYY-MM-DD' strings. Otherwise they become JS Dates at
+      // midnight UTC and browsers in US time zones display the event one day early.
+      dateStrings: ['DATE']
     });
     await db.execute('SELECT 1');
     console.log('MySQL connected!');
@@ -69,7 +120,7 @@ async function connectDB() {
         item_name VARCHAR(200),
         qty_needed INT DEFAULT 1,
         event_date DATE,
-        status VARCHAR(50) DEFAULT 'pending',
+        status VARCHAR(50) DEFAULT 'booked',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -104,6 +155,8 @@ async function connectDB() {
     try { await db.execute('ALTER TABLE projects ADD COLUMN inquiry_id VARCHAR(50)'); } catch(e) {}
     // Add project_id column to bookings if not exists (for existing tables)
     try { await db.execute('ALTER TABLE bookings ADD COLUMN project_id VARCHAR(50)'); } catch(e) {}
+    // Bookings used to be created as 'pending', which the admin panel and staff portal don't recognize
+    await db.execute("UPDATE bookings SET status='booked' WHERE status='pending' OR status IS NULL");
     // Staff member assigned to carry out the project
     try { await db.execute('ALTER TABLE projects ADD COLUMN assigned_staff_id VARCHAR(50)'); } catch(e) {}
     // Staff work progress on the assigned order: picked_up -> installed -> done
@@ -175,6 +228,29 @@ async function connectDB() {
         total DECIMAL(10,2) DEFAULT 0
       )
     `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id INT PRIMARY KEY DEFAULT 1,
+        username VARCHAR(100) NOT NULL,
+        password VARCHAR(300) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        token VARCHAR(100) PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const [admins] = await db.execute('SELECT id FROM admin_users WHERE id = 1');
+    if(!admins.length){
+      // First run: credentials come from ADMIN_USER / ADMIN_PASSWORD env vars (change them in the admin panel later)
+      await db.execute('INSERT INTO admin_users (id, username, password) VALUES (1, ?, ?)',
+        [process.env.ADMIN_USER || 'admin', hashPassword(process.env.ADMIN_PASSWORD || 'admin123')]);
+      console.log('Admin user created');
+    }
+    await db.execute('DELETE FROM admin_sessions WHERE created_at < NOW() - INTERVAL ' + ADMIN_SESSION_DAYS + ' DAY');
 
     console.log('Tables ready!');
   } catch(e) {
@@ -290,7 +366,75 @@ const DEFAULT_DATA = {
   ]
 };
 
+function validDate(v){ const d = String(v||'').slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null; }
+function cleanQuoteItems(items){
+  return (Array.isArray(items) ? items : [])
+    .filter(i => i && String(i.name||'').trim())
+    .map(i => ({
+      name: String(i.name).trim(),
+      description: i.description || '',
+      inventory_id: i.inventory_id || null,
+      qty: Math.max(1, parseInt(i.qty) || 1),
+      price: Math.max(0, parseFloat(i.price) || 0)
+    }));
+}
+
 // ===== ROUTES =====
+
+// ===== ADMIN AUTH =====
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    if(tooManyFailures(req)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+    const { username, password } = req.body || {};
+    const [rows] = await db.execute('SELECT username, password FROM admin_users WHERE id = 1');
+    const admin = rows[0];
+    if(!admin || admin.username !== String(username||'').trim() || !verifyPassword(password||'', admin.password)){
+      recordFailure(req);
+      return res.status(401).json({ error: 'Wrong username or password' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    await db.execute('INSERT INTO admin_sessions (token) VALUES (?)', [token]);
+    res.json({ success: true, token, username: admin.username });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/logout', async (req, res) => {
+  try {
+    const token = req.headers['x-admin-token'];
+    if(token) await db.execute('DELETE FROM admin_sessions WHERE token=?', [token]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/me', async (req, res) => {
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const [rows] = await db.execute('SELECT username FROM admin_users WHERE id = 1');
+    res.json({ username: rows[0]?.username || '' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Change admin login/password (current password required)
+app.post('/api/admin/credentials', async (req, res) => {
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { username, new_password, current_password } = req.body || {};
+    const [rows] = await db.execute('SELECT password FROM admin_users WHERE id = 1');
+    if(!rows.length || !verifyPassword(current_password||'', rows[0].password))
+      return res.status(400).json({ error: 'Current password is wrong' });
+    const user = String(username||'').trim();
+    if(!user) return res.status(400).json({ error: 'Username is required' });
+    if(new_password && String(new_password).length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    if(new_password){
+      await db.execute('UPDATE admin_users SET username=?, password=? WHERE id = 1', [user, hashPassword(new_password)]);
+      // Sign out all other sessions after a password change
+      await db.execute('DELETE FROM admin_sessions WHERE token <> ?', [req.headers['x-admin-token'] || '']);
+    } else {
+      await db.execute('UPDATE admin_users SET username=? WHERE id = 1', [user]);
+    }
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // GET site data
 app.get('/api/data', async (req, res) => {
@@ -305,7 +449,7 @@ app.get('/api/data', async (req, res) => {
 
 // POST update site data
 app.post('/api/data', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('INSERT INTO site_data (id, data) VALUES (1, ?) ON DUPLICATE KEY UPDATE data = ?, updated_at = NOW()',
       [JSON.stringify(req.body), JSON.stringify(req.body)]);
@@ -318,8 +462,18 @@ app.post('/api/data', async (req, res) => {
 // POST new inquiry
 app.post('/api/inquiry', async (req, res) => {
   try {
-    const id = 'inq_' + Date.now();
-    const data = { ...req.body, createdAt: new Date().toISOString() };
+    const body = req.body;
+    if(!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'Invalid inquiry' });
+    const email = String(body['Email'] || '').trim();
+    if(!String(body['First Name'] || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return res.status(400).json({ error: 'First name and a valid email are required' });
+    // Keep only plain short text fields
+    const data = {};
+    for(const [k, v] of Object.entries(body).slice(0, 40)){
+      if(typeof v === 'string' || typeof v === 'number') data[String(k).slice(0, 100)] = String(v).slice(0, 5000);
+    }
+    data.createdAt = new Date().toISOString();
+    const id = newId('inq_');
     await db.execute('INSERT INTO inquiries (id, data, status, comment) VALUES (?, ?, ?, ?)',
       [id, JSON.stringify(data), 'new', '']);
     res.json({ success: true, id });
@@ -330,7 +484,7 @@ app.post('/api/inquiry', async (req, res) => {
 
 // GET all inquiries
 app.get('/api/inquiries', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute('SELECT * FROM inquiries ORDER BY created_at DESC');
     const inquiries = rows.map(r => ({
@@ -348,7 +502,7 @@ app.get('/api/inquiries', async (req, res) => {
 
 // PATCH update inquiry
 app.patch('/api/inquiry/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     if(req.body.status) await db.execute('UPDATE inquiries SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
     if(req.body.comment !== undefined) await db.execute('UPDATE inquiries SET comment = ? WHERE id = ?', [req.body.comment, req.params.id]);
@@ -362,7 +516,7 @@ app.patch('/api/inquiry/:id', async (req, res) => {
 
 // GET all inventory items
 app.get('/api/inventory', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [items] = await db.execute('SELECT * FROM inventory ORDER BY category, name');
     // For each item get current bookings
@@ -382,13 +536,14 @@ app.get('/api/inventory', async (req, res) => {
 
 // POST add inventory item
 app.post('/api/inventory', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const id = 'inv_' + Date.now();
+    const id = newId('inv_');
     const { name, category, total_qty, notes } = req.body;
+    if(!String(name||'').trim()) return res.status(400).json({ error: 'Name is required' });
     await db.execute(
       'INSERT INTO inventory (id, name, category, total_qty, notes) VALUES (?, ?, ?, ?, ?)',
-      [id, name, category || '', total_qty || 1, notes || '']
+      [id, String(name).trim(), category || '', Math.max(0, parseInt(total_qty) || 1), notes || '']
     );
     res.json({ success: true, id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -396,12 +551,13 @@ app.post('/api/inventory', async (req, res) => {
 
 // PATCH update inventory item
 app.patch('/api/inventory/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const { name, category, total_qty, notes } = req.body;
+    if(!String(name||'').trim()) return res.status(400).json({ error: 'Name is required' });
     await db.execute(
       'UPDATE inventory SET name=?, category=?, total_qty=?, notes=? WHERE id=?',
-      [name, category, total_qty, notes, req.params.id]
+      [String(name).trim(), category || '', Math.max(0, parseInt(total_qty) || 0), notes || '', req.params.id]
     );
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -409,7 +565,7 @@ app.patch('/api/inventory/:id', async (req, res) => {
 
 // DELETE inventory item
 app.delete('/api/inventory/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('DELETE FROM inventory WHERE id=?', [req.params.id]);
     res.json({ success: true });
@@ -420,7 +576,7 @@ app.delete('/api/inventory/:id', async (req, res) => {
 
 // GET bookings for a date (check availability)
 app.get('/api/availability', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const { date } = req.query;
     const [bookings] = await db.execute(
@@ -433,12 +589,16 @@ app.get('/api/availability', async (req, res) => {
 
 // POST add booking items to inquiry
 app.post('/api/booking', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const { inquiry_id, project_id, items, event_date } = req.body;
     // items = [{item_id, item_name, qty_needed}]
+    if(!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items' });
+    if(!validDate(event_date)) return res.status(400).json({ error: 'Valid event date is required' });
+    if(!inquiry_id && !project_id) return res.status(400).json({ error: 'inquiry_id or project_id is required' });
     const warnings = [];
     for(const item of items) {
+      item.qty_needed = Math.max(1, parseInt(item.qty_needed) || 1);
       // Check availability
       const [inv] = await db.execute('SELECT total_qty FROM inventory WHERE id=?', [item.item_id]);
       const [used] = await db.execute(
@@ -458,10 +618,10 @@ app.post('/api/booking', async (req, res) => {
         });
       }
       // Add booking regardless (admin can handle)
-      const id = 'bk_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
+      const id = newId('bk_');
       await db.execute(
-        'INSERT INTO bookings (id, inquiry_id, project_id, item_id, item_name, qty_needed, event_date) VALUES (?,?,?,?,?,?,?)',
-        [id, inquiry_id||null, project_id||null, item.item_id, item.item_name, item.qty_needed, event_date]
+        'INSERT INTO bookings (id, inquiry_id, project_id, item_id, item_name, qty_needed, event_date, status) VALUES (?,?,?,?,?,?,?,?)',
+        [id, inquiry_id||null, project_id||null, item.item_id, item.item_name, item.qty_needed, event_date, 'booked']
       );
     }
     res.json({ success: true, warnings });
@@ -470,7 +630,7 @@ app.post('/api/booking', async (req, res) => {
 
 // GET all bookings
 app.get('/api/bookings', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [bookings] = await db.execute(
       'SELECT * FROM bookings ORDER BY event_date DESC'
@@ -481,8 +641,9 @@ app.get('/api/bookings', async (req, res) => {
 
 // PATCH update booking status
 app.patch('/api/booking/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
+    if(!BOOKING_STATUSES.includes(req.body.status)) return res.status(400).json({ error: 'Invalid status' });
     await db.execute('UPDATE bookings SET status=? WHERE id=?', [req.body.status, req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -490,7 +651,7 @@ app.patch('/api/booking/:id', async (req, res) => {
 
 // GET bookings by inquiry_id
 app.get('/api/bookings/inquiry/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute(
       'SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b LEFT JOIN inventory i ON b.item_id = i.id WHERE b.inquiry_id = ? ORDER BY b.created_at',
@@ -503,7 +664,7 @@ app.get('/api/bookings/inquiry/:id', async (req, res) => {
 // GET bookings by project_id (also picks up items still tagged with the project's original inquiry_id,
 // so projects created before the project_id column existed show their items too)
 app.get('/api/bookings/project/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute(
       `SELECT b.*, i.total_qty, i.name as inv_name FROM bookings b
@@ -519,8 +680,9 @@ app.get('/api/bookings/project/:id', async (req, res) => {
 
 // PATCH booking status
 app.patch('/api/booking/:id/status', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
+    if(!BOOKING_STATUSES.includes(req.body.status)) return res.status(400).json({ error: 'Invalid status' });
     await db.execute('UPDATE bookings SET status=? WHERE id=?', [req.body.status, req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -528,7 +690,7 @@ app.patch('/api/booking/:id/status', async (req, res) => {
 
 // DELETE booking
 app.delete('/api/booking/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('DELETE FROM bookings WHERE id=?', [req.params.id]);
     res.json({ success: true });
@@ -538,7 +700,7 @@ app.delete('/api/booking/:id', async (req, res) => {
 // ===== PROJECTS =====
 
 app.get('/api/projects', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute('SELECT p.*, s.name as assigned_staff_name FROM projects p LEFT JOIN staff s ON p.assigned_staff_id = s.id ORDER BY p.created_at DESC');
     res.json(rows);
@@ -546,7 +708,7 @@ app.get('/api/projects', async (req, res) => {
 });
 
 app.get('/api/projects/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute('SELECT * FROM projects WHERE id=?', [req.params.id]);
     if(!rows.length) return res.status(404).json({ error: 'Not found' });
@@ -555,13 +717,18 @@ app.get('/api/projects/:id', async (req, res) => {
 });
 
 app.post('/api/projects', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const id = 'prj_' + Date.now();
     const { client_name, client_email, client_phone, event_type, event_date, event_address, event_time, location_type, notes, source, inquiry_id } = req.body;
+    // An inquiry is converted only once (status change and the Convert button can both trigger it)
+    if(inquiry_id){
+      const [existing] = await db.execute('SELECT id FROM projects WHERE inquiry_id=?', [inquiry_id]);
+      if(existing.length) return res.json({ success: true, id: existing[0].id, existed: true });
+    }
+    const id = newId('prj_');
     await db.execute(
       'INSERT INTO projects (id,inquiry_id,client_name,client_email,client_phone,event_type,event_date,event_address,event_time,location_type,notes,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-      [id, inquiry_id||null, client_name||'', client_email||'', client_phone||'', event_type||'', event_date||null, event_address||'', event_time||'', location_type||'', notes||'', source||'']
+      [id, inquiry_id||null, client_name||'', client_email||'', client_phone||'', event_type||'', validDate(event_date), event_address||'', event_time||'', location_type||'', notes||'', source||'']
     );
     // Carry over any rented items already added while this was still an inquiry
     if(inquiry_id){
@@ -572,10 +739,9 @@ app.post('/api/projects', async (req, res) => {
 });
 
 // ===== STAFF (admin CRUD) =====
-const crypto = require('crypto');
 
 app.get('/api/staff', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute('SELECT id, name, phone, login, active, pay_rate, created_at FROM staff ORDER BY name');
     res.json(rows);
@@ -583,13 +749,13 @@ app.get('/api/staff', async (req, res) => {
 });
 
 app.post('/api/staff', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const { name, phone, login, password, pay_rate } = req.body;
     if(!name || !login || !password) return res.status(400).json({ error: 'name, login and password are required' });
-    const id = 'st_' + Date.now();
+    const id = newId('st_');
     await db.execute('INSERT INTO staff (id, name, phone, login, password, pay_rate) VALUES (?,?,?,?,?,?)',
-      [id, name, phone||'', login, password, pay_rate||0]);
+      [id, name, phone||'', login, hashPassword(password), parseFloat(pay_rate)||0]);
     res.json({ success: true, id });
   } catch(e) {
     if(e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'This login is already taken' });
@@ -598,13 +764,20 @@ app.post('/api/staff', async (req, res) => {
 });
 
 app.patch('/api/staff/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const fields = ['name','phone','login','password','active','pay_rate'];
-    const updates = fields.filter(f => req.body[f] !== undefined);
+    const body = { ...req.body };
+    if(body.password === '') delete body.password;
+    if(body.password !== undefined) body.password = hashPassword(body.password);
+    if(body.pay_rate !== undefined) body.pay_rate = parseFloat(body.pay_rate) || 0;
+    if(body.active !== undefined) body.active = body.active ? 1 : 0;
+    const updates = fields.filter(f => body[f] !== undefined);
     if(!updates.length) return res.json({ success: true });
     const sql = 'UPDATE staff SET ' + updates.map(f => f+'=?').join(',') + ' WHERE id=?';
-    await db.execute(sql, [...updates.map(f => req.body[f]), req.params.id]);
+    await db.execute(sql, [...updates.map(f => body[f]), req.params.id]);
+    // Disabled account or new password -> sign the staff member out everywhere
+    if(body.active === 0 || body.password !== undefined) await db.execute('UPDATE staff SET token=NULL WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch(e) {
     if(e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'This login is already taken' });
@@ -613,9 +786,10 @@ app.patch('/api/staff/:id', async (req, res) => {
 });
 
 app.delete('/api/staff/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('DELETE FROM staff WHERE id=?', [req.params.id]);
+    await db.execute('DELETE FROM staff_responses WHERE staff_id=?', [req.params.id]);
     await db.execute('UPDATE projects SET assigned_staff_id=NULL WHERE assigned_staff_id=?', [req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -623,7 +797,7 @@ app.delete('/api/staff/:id', async (req, res) => {
 
 // Responses of all staff for one project (admin view)
 app.get('/api/projects/:id/responses', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute(
       `SELECT r.*, s.name as staff_name, s.phone as staff_phone
@@ -645,10 +819,17 @@ async function staffFromToken(req){
 
 app.post('/api/staff/login', async (req, res) => {
   try {
+    if(tooManyFailures(req)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
     const { login, password } = req.body;
-    const [rows] = await db.execute('SELECT * FROM staff WHERE login=? AND password=? AND active=1', [login||'', password||'']);
-    if(!rows.length) return res.status(401).json({ error: 'Wrong login or password' });
+    const [rows] = await db.execute('SELECT * FROM staff WHERE login=? AND active=1', [String(login||'').trim()]);
+    if(!rows.length || !verifyPassword(password||'', rows[0].password)){
+      recordFailure(req);
+      return res.status(401).json({ error: 'Wrong login or password' });
+    }
     const token = crypto.randomBytes(24).toString('hex');
+    // Upgrade legacy plain-text passwords to a hash on successful login
+    if(!rows[0].password.startsWith('scrypt$'))
+      await db.execute('UPDATE staff SET password=? WHERE id=?', [hashPassword(password), rows[0].id]);
     await db.execute('UPDATE staff SET token=? WHERE id=?', [token, rows[0].id]);
     res.json({ success: true, token, staff: { id: rows[0].id, name: rows[0].name } });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -762,7 +943,7 @@ app.get('/api/staff/earnings', async (req, res) => {
 
 // ===== PAYROLL (admin) =====
 app.get('/api/payroll', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute(`
       SELECT s.id, s.name, s.phone, s.active, s.pay_rate,
@@ -781,11 +962,11 @@ app.get('/api/payroll', async (req, res) => {
 });
 
 app.post('/api/staff/:id/payments', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const { amount, note } = req.body;
-    if(!amount || isNaN(parseFloat(amount))) return res.status(400).json({ error: 'Amount is required' });
-    const id = 'pay_' + Date.now();
+    if(!(parseFloat(amount) > 0)) return res.status(400).json({ error: 'Amount must be greater than 0' });
+    const id = newId('pay_');
     await db.execute('INSERT INTO staff_payments (id, staff_id, amount, note) VALUES (?,?,?,?)',
       [id, req.params.id, parseFloat(amount), note||'']);
     res.json({ success: true, id });
@@ -793,7 +974,7 @@ app.post('/api/staff/:id/payments', async (req, res) => {
 });
 
 app.get('/api/staff/:id/payments', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [rows] = await db.execute('SELECT * FROM staff_payments WHERE staff_id=? ORDER BY created_at DESC', [req.params.id]);
     res.json(rows);
@@ -807,7 +988,7 @@ app.post('/api/staff/orders/:id/respond', async (req, res) => {
     if(!me) return res.status(401).json({ error: 'Unauthorized' });
     const { response } = req.body;
     if(!['accept','decline','busy'].includes(response)) return res.status(400).json({ error: 'Invalid response' });
-    const rid = 'sr_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+    const rid = newId('sr_');
     await db.execute(
       `INSERT INTO staff_responses (id, project_id, staff_id, response) VALUES (?,?,?,?)
        ON DUPLICATE KEY UPDATE response=VALUES(response), created_at=CURRENT_TIMESTAMP`,
@@ -830,22 +1011,37 @@ app.post('/api/staff/orders/:id/respond', async (req, res) => {
 });
 
 app.patch('/api/projects/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const fields = ['client_name','client_email','client_phone','event_type','event_date','event_address','event_time','location_type','status','notes','source','assigned_staff_id'];
+    if(req.body.status !== undefined && !PROJECT_STATUSES.includes(req.body.status)) return res.status(400).json({ error: 'Invalid status' });
+    if(req.body.event_date !== undefined) req.body.event_date = validDate(req.body.event_date);
     const updates = fields.filter(f => req.body[f] !== undefined);
     if(!updates.length) return res.json({ success: true });
     const sql = 'UPDATE projects SET ' + updates.map(f => f+'=?').join(',') + ' WHERE id=?';
     await db.execute(sql, [...updates.map(f => req.body[f] || null), req.params.id]);
+    // A cancelled event no longer holds its rented items in the warehouse
+    if(req.body.status === 'cancelled'){
+      const [[proj]] = await db.execute('SELECT inquiry_id FROM projects WHERE id=?', [req.params.id]);
+      await db.execute(
+        `UPDATE bookings SET status='cancelled' WHERE status IN ('booked','pending')
+           AND (project_id=? OR (inquiry_id IS NOT NULL AND inquiry_id=?))`,
+        [req.params.id, proj?.inquiry_id || '']);
+    }
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('DELETE FROM quote_items WHERE quote_id IN (SELECT id FROM quotes WHERE project_id=?)', [req.params.id]);
     await db.execute('DELETE FROM quotes WHERE project_id=?', [req.params.id]);
+    // Free the items reserved for this event, otherwise they stay "in use" forever
+    const [[proj]] = await db.execute('SELECT inquiry_id FROM projects WHERE id=?', [req.params.id]);
+    await db.execute('DELETE FROM bookings WHERE project_id=? OR (inquiry_id IS NOT NULL AND inquiry_id=?)',
+      [req.params.id, proj?.inquiry_id || '']);
+    await db.execute('DELETE FROM staff_responses WHERE project_id=?', [req.params.id]);
     await db.execute('DELETE FROM projects WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -854,7 +1050,7 @@ app.delete('/api/projects/:id', async (req, res) => {
 // ===== QUOTES =====
 
 app.get('/api/quotes/project/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const [quotes] = await db.execute('SELECT * FROM quotes WHERE project_id=? ORDER BY created_at DESC', [req.params.id]);
     for(const q of quotes){
@@ -880,12 +1076,15 @@ app.get('/api/quote/:id/public', async (req, res) => {
 });
 
 app.post('/api/quotes', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const id = 'qte_' + Date.now();
-    const { project_id, title, items, discount, tax, deposit, notes, terms } = req.body;
+    // Random id: the public quote link must not be guessable (it shows the client's name and venue)
+    const id = 'qte_' + crypto.randomBytes(12).toString('hex');
+    const { project_id, title, discount, tax, deposit, notes, terms } = req.body;
+    if(!project_id) return res.status(400).json({ error: 'project_id is required' });
+    const items = cleanQuoteItems(req.body.items);
     // Calculate totals
-    const subtotal = (items||[]).reduce((sum, i) => sum + (parseFloat(i.price)*parseInt(i.qty)), 0);
+    const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
     const discountAmt = parseFloat(discount)||0;
     const taxAmt = parseFloat(tax)||0;
     const total = subtotal - discountAmt + taxAmt;
@@ -894,12 +1093,10 @@ app.post('/api/quotes', async (req, res) => {
       [id, project_id, title||'Quote', subtotal, discountAmt, taxAmt, total, parseFloat(deposit)||0, notes||'', terms||'']
     );
     // Add items
-    for(const item of (items||[])){
-      const iid = 'qi_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
-      const itotal = parseFloat(item.price) * parseInt(item.qty);
+    for(const item of items){
       await db.execute(
         'INSERT INTO quote_items (id,quote_id,inventory_id,name,description,qty,price,total) VALUES (?,?,?,?,?,?,?,?)',
-        [iid, id, item.inventory_id||null, item.name, item.description||'', parseInt(item.qty)||1, parseFloat(item.price)||0, itotal]
+        [newId('qi_'), id, item.inventory_id, item.name, item.description, item.qty, item.price, item.qty * item.price]
       );
     }
     res.json({ success: true, id });
@@ -907,22 +1104,21 @@ app.post('/api/quotes', async (req, res) => {
 });
 
 app.patch('/api/quotes/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const { status, items, discount, tax, deposit, notes, terms, title } = req.body;
-    if(items !== undefined){
+    const { status, discount, tax, deposit, notes, terms, title } = req.body;
+    if(req.body.items !== undefined){
+      const items = cleanQuoteItems(req.body.items);
       await db.execute('DELETE FROM quote_items WHERE quote_id=?', [req.params.id]);
-      const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price)*parseInt(i.qty)), 0);
+      const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
       const discountAmt = parseFloat(discount)||0;
       const taxAmt = parseFloat(tax)||0;
       const total = subtotal - discountAmt + taxAmt;
       await db.execute('UPDATE quotes SET subtotal=?,discount=?,tax=?,total=?,deposit=?,notes=?,terms=?,title=? WHERE id=?',
         [subtotal, discountAmt, taxAmt, total, parseFloat(deposit)||0, notes||'', terms||'', title||'Quote', req.params.id]);
       for(const item of items){
-        const iid = 'qi_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
-        const itotal = parseFloat(item.price) * parseInt(item.qty);
         await db.execute('INSERT INTO quote_items (id,quote_id,inventory_id,name,description,qty,price,total) VALUES (?,?,?,?,?,?,?,?)',
-          [iid, req.params.id, item.inventory_id||null, item.name, item.description||'', parseInt(item.qty)||1, parseFloat(item.price)||0, itotal]);
+          [newId('qi_'), req.params.id, item.inventory_id, item.name, item.description, item.qty, item.price, item.qty * item.price]);
       }
     }
     if(status) await db.execute('UPDATE quotes SET status=? WHERE id=?', [status, req.params.id]);
@@ -931,7 +1127,7 @@ app.patch('/api/quotes/:id', async (req, res) => {
 });
 
 app.delete('/api/quotes/:id', async (req, res) => {
-  if(req.headers['x-admin-secret'] !== ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if(!(await isAdmin(req))) return res.status(401).json({ error: 'Unauthorized' });
   try {
     await db.execute('DELETE FROM quote_items WHERE quote_id=?', [req.params.id]);
     await db.execute('DELETE FROM quotes WHERE id=?', [req.params.id]);

@@ -281,7 +281,6 @@
     <input type="password" id="lp" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
     <button class="login-btn" onclick="login()">Sign In →</button>
     <p class="login-error" id="lerr">Wrong username or password</p>
-    <p style="font-size:12px;color:var(--gray);margin-top:14px">Default: admin / admin123</p>
   </div>
 </div>
 
@@ -293,7 +292,7 @@
       <span class="saved-msg" id="saved-msg">✓ Saved!</span>
       <button class="tbtn tbtn-prev" onclick="window.open('../index.html','_blank')">View Site ↗</button>
       
-      <button class="tbtn tbtn-out" onclick="logout()">Sign Out</button>
+      <button class="tbtn tbtn-out" onclick="logout(false)">Sign Out</button>
     </div>
   </div>
 
@@ -507,13 +506,16 @@
             <div class="fg"><label>Instagram URL</label><input id="b-insta"></div>
             <div class="fg full"><label>Service Areas</label><input id="b-areas"></div>
           </div>
-          <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--gray-l)">
-            <div style="font-size:13px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">Login Credentials</div>
-            <div class="form-grid">
-              <div class="fg"><label>Username</label><input id="b-user"></div>
-              <div class="fg"><label>Password</label><input type="password" id="b-pass"></div>
-            </div>
+        </div>
+        <div class="branding-box" style="margin-top:1.5rem">
+          <div style="font-size:13px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">Admin Login</div>
+          <div class="form-grid">
+            <div class="fg"><label>Username</label><input id="b-user" autocomplete="username"></div>
+            <div class="fg"><label>New Password (leave empty to keep)</label><input type="password" id="b-pass" autocomplete="new-password"></div>
+            <div class="fg"><label>Current Password *</label><input type="password" id="b-cur-pass" autocomplete="current-password"></div>
+            <div class="fg" style="justify-content:flex-end"><button class="add-btn" style="justify-content:center" onclick="saveCredentials()">Update Login</button></div>
           </div>
+          <div id="cred-msg" style="font-size:13px;font-weight:600;margin-top:10px"></div>
         </div>
       </div>
 
@@ -538,40 +540,97 @@
 
 <script src="../js/data.js"></script>
 <script>
-// ===== AUTH =====
-const CRED_KEY = 'glowup_creds';
-const DATA_KEY = 'glowup_site_data';
+const API_URL = 'https://mehroj-production.up.railway.app';
 
-function getCreds(){
-  try{ return JSON.parse(localStorage.getItem(CRED_KEY)) || {user:'admin',pass:'admin123'} }
-  catch{ return {user:'admin',pass:'admin123'} }
+// ===== HELPERS =====
+// Escape any text before putting it into HTML (inquiries come from the public form)
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function login(){
-  const u=document.getElementById('lu').value.trim();
-  const p=document.getElementById('lp').value.trim();
-  const c=getCreds();
-  if(u===c.user && p===c.pass){
-    localStorage.setItem('glowup_session','active');
+// Event dates are stored as 'YYYY-MM-DD'. new Date('YYYY-MM-DD') is parsed as UTC midnight,
+// which shows the previous day in US time zones - so build the date in local time instead.
+function parseDay(d){
+  if(!d) return null;
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(d);
+}
+function fmtDay(d, opts){
+  const dt = parseDay(d);
+  return dt && !isNaN(dt) ? dt.toLocaleDateString('en-US', opts || {month:'short',day:'numeric',year:'numeric'}) : '';
+}
+function dayKey(d){ return d ? String(d).slice(0,10) : ''; }
+
+// ===== AUTH =====
+// The admin signs in against the server and gets a session token; every API call sends it.
+const TOKEN_KEY = 'glowup_admin_token';
+let adminToken = '';
+try { adminToken = localStorage.getItem(TOKEN_KEY) || ''; } catch(e) {}
+function authHeaders(json){
+  const h = { 'x-admin-token': adminToken };
+  if(json) h['Content-Type'] = 'application/json';
+  return h;
+}
+// Any 401 from the API means the session expired -> back to the login screen
+const _nativeFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const res = await _nativeFetch(...args);
+  const url = String(args[0] && args[0].url || args[0]);
+  if(res.status === 401 && url.startsWith(API_URL) && !url.includes('/api/admin/login') && adminToken){
+    logout(true);
+  }
+  return res;
+};
+
+async function login(){
+  const username=document.getElementById('lu').value.trim();
+  const password=document.getElementById('lp').value;
+  const err=document.getElementById('lerr');
+  err.style.display='none';
+  try {
+    const res = await fetch(API_URL + '/api/admin/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if(!res.ok || !data.token){
+      err.textContent = data.error || 'Wrong username or password';
+      err.style.display='block';
+      return;
+    }
+    adminToken = data.token;
+    try { localStorage.setItem(TOKEN_KEY, adminToken); } catch(e) {}
+    document.getElementById('lp').value = '';
     showAdmin();
-  } else {
-    document.getElementById('lerr').style.display='block';
+  } catch(e) {
+    err.textContent = 'Connection error. Try again.';
+    err.style.display='block';
   }
 }
 function showAdmin(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('admin-screen').style.display='block';
   loadData();
+  loadInquiries(); // fills the "new inquiries" badge right away
 }
-function logout(){
-  localStorage.removeItem('glowup_session');
+function logout(expired){
+  if(!expired && adminToken){
+    _nativeFetch(API_URL + '/api/admin/logout', { method: 'POST', headers: authHeaders() }).catch(()=>{});
+  }
+  adminToken = '';
+  try { localStorage.removeItem(TOKEN_KEY); } catch(e) {}
+  closeModal();
+  closePanel();
   document.getElementById('admin-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
-}
-// Auto-login if session exists
-window.addEventListener('DOMContentLoaded', () => {
-  if(localStorage.getItem('glowup_session') === 'active') {
-    showAdmin();
+  if(expired){
+    const err=document.getElementById('lerr');
+    err.textContent='Session expired. Please sign in again.';
+    err.style.display='block';
   }
+}
+// Auto-login if a session token exists (the server will reject it with 401 if it expired)
+window.addEventListener('DOMContentLoaded', () => {
+  if(adminToken) showAdmin();
 });
 
 // ===== DATA =====
@@ -586,8 +645,6 @@ async function loadData(){
   renderAll();
   populateBranding();
 }
-const API_URL = 'https://mehroj-production.up.railway.app';
-const ADMIN_SECRET = 'glowup2024';
 
 async function saveAll(){
   // Save branding fields
@@ -598,9 +655,6 @@ async function saveAll(){
   D.address = document.getElementById('b-address').value;
   D.instagram = document.getElementById('b-insta').value;
   D.areas = document.getElementById('b-areas').value;
-  const u=document.getElementById('b-user').value.trim();
-  const p=document.getElementById('b-pass').value.trim();
-  if(u&&p) localStorage.setItem(CRED_KEY,JSON.stringify({user:u,pass:p}));
 
   const m=document.getElementById('saved-msg');
   m.textContent = 'Saving...';
@@ -609,10 +663,7 @@ async function saveAll(){
   try {
     const res = await fetch(API_URL + '/api/data', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-secret': ADMIN_SECRET
-      },
+      headers: authHeaders(true),
       body: JSON.stringify(D)
     });
     const result = await res.json();
@@ -636,9 +687,31 @@ function populateBranding(){
   document.getElementById('b-address').value = D.address||'';
   document.getElementById('b-insta').value = D.instagram||'';
   document.getElementById('b-areas').value = D.areas||'';
-  const c=getCreds();
-  document.getElementById('b-user').value=c.user;
-  document.getElementById('b-pass').value=c.pass;
+  loadAdminUsername();
+}
+async function loadAdminUsername(){
+  try {
+    const res = await fetch(API_URL + '/api/admin/me', { headers: authHeaders() });
+    if(res.ok){ const d = await res.json(); document.getElementById('b-user').value = d.username || ''; }
+  } catch(e) {}
+}
+async function saveCredentials(){
+  const msg = document.getElementById('cred-msg');
+  const body = {
+    username: document.getElementById('b-user').value.trim(),
+    current_password: document.getElementById('b-cur-pass').value,
+    new_password: document.getElementById('b-pass').value
+  };
+  if(!body.username){ msg.style.color='var(--red)'; msg.textContent='Username is required'; return; }
+  if(!body.current_password){ msg.style.color='var(--red)'; msg.textContent='Enter your current password to confirm'; return; }
+  try {
+    const res = await fetch(API_URL + '/api/admin/credentials', { method:'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+    const d = await res.json();
+    if(!res.ok){ msg.style.color='var(--red)'; msg.textContent = d.error || 'Failed to save'; return; }
+    document.getElementById('b-cur-pass').value='';
+    document.getElementById('b-pass').value='';
+    msg.style.color='var(--green)'; msg.textContent='✓ Login updated';
+  } catch(e) { msg.style.color='var(--red)'; msg.textContent='Connection error'; }
 }
 
 // ===== RENDER =====
@@ -654,12 +727,12 @@ function renderServices(){
   g.innerHTML = D.services.map((s,i)=>`
     <div class="admin-card">
       <div class="admin-card-img">
-        ${s.image ? `<img src="${s.image}" alt="${s.title}">` : '<div class="no-img">No image</div>'}
+        ${s.image ? `<img src="${esc(s.image)}" alt="${esc(s.title)}">` : '<div class="no-img">No image</div>'}
       </div>
       <div class="admin-card-body">
-        <div class="admin-card-price">${s.price||''}</div>
-        <div class="admin-card-name">${s.title}</div>
-        <div class="admin-card-desc">${s.description}</div>
+        <div class="admin-card-price">${esc(s.price)}</div>
+        <div class="admin-card-name">${esc(s.title)}</div>
+        <div class="admin-card-desc">${esc(s.description)}</div>
         <div class="admin-card-actions">
           <button class="btn-edit" onclick="openModal('service',${i})">✏ Edit</button>
           <button class="btn-del" onclick="deleteItem('services',${i})">🗑 Delete</button>
@@ -674,13 +747,13 @@ function renderPackages(){
   g.innerHTML = D.packages.map((p,i)=>`
     <div class="admin-card">
       <div class="admin-card-img">
-        ${p.image ? `<img src="${p.image}" alt="${p.name}">` : '<div class="no-img">No image</div>'}
+        ${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}">` : '<div class="no-img">No image</div>'}
       </div>
       <div class="admin-card-body">
-        ${p.highlight ? `<div class="featured-badge">${p.tag||'Featured'}</div>` : ''}
-        <div class="admin-card-price">${p.price}</div>
-        <div class="admin-card-name">${p.name}</div>
-        <div class="admin-card-desc">${(p.includes||[]).join(', ')}</div>
+        ${p.highlight ? `<div class="featured-badge">${esc(p.tag||'Featured')}</div>` : ''}
+        <div class="admin-card-price">${esc(p.price)}</div>
+        <div class="admin-card-name">${esc(p.name)}</div>
+        <div class="admin-card-desc">${esc((p.includes||[]).join(', '))}</div>
         <div class="admin-card-actions">
           <button class="btn-edit" onclick="openModal('package',${i})">✏ Edit</button>
           <button class="btn-del" onclick="deleteItem('packages',${i})">🗑 Delete</button>
@@ -695,9 +768,9 @@ function renderReviews(){
   g.innerHTML = D.reviews.map((r,i)=>`
     <div class="list-row">
       <div class="list-row-body">
-        <div class="stars">${'★'.repeat(r.stars)}</div>
-        <div class="list-row-title">${r.name} — ${r.event}</div>
-        <div class="list-row-sub">"${r.text.substring(0,120)}..."</div>
+        <div class="stars">${'★'.repeat(Math.max(0, Math.min(5, parseInt(r.stars)||0)))}</div>
+        <div class="list-row-title">${esc(r.name)} — ${esc(r.event)}</div>
+        <div class="list-row-sub">"${esc((r.text||'').substring(0,120))}${(r.text||'').length>120?'...':''}"</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
         <button class="btn-edit" onclick="openModal('review',${i})">✏ Edit</button>
@@ -712,8 +785,8 @@ function renderFAQ(){
   g.innerHTML = D.faq.map((f,i)=>`
     <div class="list-row">
       <div class="list-row-body">
-        <div class="list-row-title">Q: ${f.question}</div>
-        <div class="list-row-sub">A: ${f.answer.substring(0,120)}...</div>
+        <div class="list-row-title">Q: ${esc(f.question)}</div>
+        <div class="list-row-sub">A: ${esc((f.answer||'').substring(0,120))}${(f.answer||'').length>120?'...':''}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
         <button class="btn-edit" onclick="openModal('faq',${i})">✏ Edit</button>
@@ -742,11 +815,7 @@ async function deleteItem(col,idx){
   renderAll();
   // Auto-save to Railway after delete
   try {
-    await fetch(API_URL + '/api/data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
-      body: JSON.stringify(D)
-    });
+    await autoSave();
   } catch(e) { console.log('Auto-save failed', e); }
 }
 
@@ -788,16 +857,20 @@ async function confirmModal(){
       source: document.getElementById('pf-source').value,
       notes: document.getElementById('pf-notes').value.trim()
     };
+    if(!data.client_name){ alert('Client name is required'); return; }
     const isEdit = CM.idx && CM.idx !== null;
     const method = isEdit ? 'PATCH' : 'POST';
     const url = isEdit ? API_URL+'/api/projects/'+CM.idx : API_URL+'/api/projects';
     try {
-      const res = await fetch(url, { method, headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET}, body: JSON.stringify(data) });
+      const res = await fetch(url, { method, headers: authHeaders(true), body: JSON.stringify(data) });
       const result = await res.json();
+      if(!res.ok){ alert(result.error || 'Save failed'); return; }
       closeModal();
       await loadProjects();
-      if(!isEdit && result.id) openProject(result.id);
-    } catch(e) { console.log('Project save failed', e); }
+      // Re-open the side panel so it shows the saved data
+      if(isEdit) openProject(CM.idx);
+      else if(result.id) openProject(result.id);
+    } catch(e) { alert('Save failed. Check your connection.'); }
     return;
   }
 
@@ -817,11 +890,13 @@ async function confirmModal(){
     const isEdit = CM.idx && CM.idx !== null;
     const method = isEdit ? 'PATCH' : 'POST';
     const url = isEdit ? API_URL+'/api/quotes/'+CM.idx : API_URL+'/api/quotes';
+    if(!items.length){ alert('Add at least one item with a name'); return; }
     try {
-      const res = await fetch(url, { method, headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET}, body: JSON.stringify(data) });
+      const res = await fetch(url, { method, headers: authHeaders(true), body: JSON.stringify(data) });
+      if(!res.ok){ const d = await res.json().catch(()=>({})); alert(d.error || 'Save failed'); return; }
       closeModal();
       if(currentProjectId) loadProjectQuotes(currentProjectId);
-    } catch(e) { console.log('Quote save failed', e); }
+    } catch(e) { alert('Save failed. Check your connection.'); }
     return;
   }
 
@@ -829,17 +904,21 @@ async function confirmModal(){
   if(CM.type === 'inventory'){
     const name = document.getElementById('f-inv-name').value.trim();
     const category = document.getElementById('f-inv-cat').value;
-    const total_qty = parseInt(document.getElementById('f-inv-qty').value) || 1;
+    const qtyVal = parseInt(document.getElementById('f-inv-qty').value);
+    const total_qty = isNaN(qtyVal) ? 1 : Math.max(0, qtyVal);
     const notes = document.getElementById('f-inv-notes').value.trim();
+    if(!name){ alert('Item name is required'); return; }
     const method = CM.idx ? 'PATCH' : 'POST';
     const url = CM.idx ? API_URL+'/api/inventory/'+CM.idx : API_URL+'/api/inventory';
-    fetch(url, {
-      method,
-      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
-      body: JSON.stringify({ name, category, total_qty, notes })
-    }).then(()=>{ loadInventory(); closeModal(); });
+    try {
+      const res = await fetch(url, { method, headers: authHeaders(true), body: JSON.stringify({ name, category, total_qty, notes }) });
+      if(!res.ok){ const d = await res.json().catch(()=>({})); alert(d.error || 'Save failed'); return; }
+      closeModal();
+      loadInventory();
+    } catch(e) { alert('Save failed. Check your connection.'); }
     return;
   }
+  const item = readForm(CM.type);
   const col = getCollection(CM.type);
   if(CM.idx === null){
     item.id = CM.type + Date.now();
@@ -862,7 +941,7 @@ function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1) }
 function buildForm(type, item){
   if(type==='inventory') return `
     <div class="form-grid">
-      <div class="fg full"><label>Item Name</label><input id="f-inv-name" value="${item?.name||''}" placeholder="e.g. Letter A, White Flower Wall, Photo Booth"></div>
+      <div class="fg full"><label>Item Name</label><input id="f-inv-name" value="${esc(item?.name)}" placeholder="e.g. Letter A, White Flower Wall, Photo Booth"></div>
       <div class="fg"><label>Category</label>
         <select id="f-inv-cat">
           <option value="Letters" ${item?.category==='Letters'?'selected':''}>Letters & Numbers</option>
@@ -873,16 +952,16 @@ function buildForm(type, item){
           <option value="Other" ${item?.category==='Other'?'selected':''}>Other</option>
         </select>
       </div>
-      <div class="fg"><label>Total Quantity</label><input type="number" id="f-inv-qty" value="${item?.total_qty||1}" min="1"></div>
-      <div class="fg full"><label>Notes (optional)</label><textarea id="f-inv-notes">${item?.notes||''}</textarea></div>
+      <div class="fg"><label>Total Quantity</label><input type="number" id="f-inv-qty" value="${esc(item?.total_qty ?? 1)}" min="0"></div>
+      <div class="fg full"><label>Notes (optional)</label><textarea id="f-inv-notes">${esc(item?.notes)}</textarea></div>
     </div>`;
   if(type==='service') return `
     <div class="form-grid">
-      <div class="fg full"><label>Service Name</label><input id="f-title" value="${item?.title||''}"></div>
-      <div class="fg"><label>Price (e.g. $75)</label><input id="f-price" value="${item?.price||''}"></div>
-      <div class="fg"><label>Price Detail</label><input id="f-priceDetail" value="${item?.priceDetail||''}" placeholder="e.g. 3ft $75 · 4ft $100"></div>
-      <div class="fg full"><label>Description</label><textarea id="f-desc">${item?.description||''}</textarea></div>
-      <div class="fg full"><label>Link (page URL)</label><input id="f-link" value="${item?.link||''}" placeholder="pages/marquee.html"></div>
+      <div class="fg full"><label>Service Name</label><input id="f-title" value="${esc(item?.title)}"></div>
+      <div class="fg"><label>Price (e.g. $75)</label><input id="f-price" value="${esc(item?.price)}"></div>
+      <div class="fg"><label>Price Detail</label><input id="f-priceDetail" value="${esc(item?.priceDetail)}" placeholder="e.g. 3ft $75 · 4ft $100"></div>
+      <div class="fg full"><label>Description</label><textarea id="f-desc">${esc(item?.description)}</textarea></div>
+      <div class="fg full"><label>Link (page URL)</label><input id="f-link" value="${esc(item?.link)}" placeholder="pages/marquee.html"></div>
       <div class="fg full">
         <label>Main Photo</label>
         ${imgUploadField(item?.image,'main')}
@@ -899,16 +978,16 @@ function buildForm(type, item){
           <div id="gallery-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
         <div id="gallery-thumbs-wrap" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          ${(item?.gallery||[]).map(url=>`<img src="${url}" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
+          ${(item?.gallery||[]).map(url=>`<img src="${esc(url)}" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
         </div>
-        <textarea id="f-gallery" style="display:none">${(item?.gallery||[]).join('\n')}</textarea>
+        <textarea id="f-gallery" style="display:none">${esc((item?.gallery||[]).join('\n'))}</textarea>
       </div>
       <div class="fg full">
         <label>Video</label>
         <div style="border:2px dashed var(--gray-l);border-radius:12px;padding:1.5rem;background:var(--off);text-align:center">
           <div id="video-preview-wrap">
             ${item?.video 
-              ? `<video src="${item.video}" style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block" controls></video>`
+              ? `<video src="${esc(item.video)}" style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block" controls></video>`
               : `<div style="font-size:2.5rem;margin-bottom:6px">🎬</div>`}
           </div>
           <button type="button" onclick="uploadVideo('f-video','video-preview-wrap')"
@@ -918,27 +997,27 @@ function buildForm(type, item){
           <div style="font-size:12px;color:var(--gray);margin-top:6px">MP4, MOV supported</div>
           <div id="video-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
-        <input id="f-video" type="hidden" value="${item?.video||''}">
+        <input id="f-video" type="hidden" value="${esc(item?.video)}">
       </div>
     </div>`;
 
   if(type==='package') return `
     <div class="form-grid">
-      <div class="fg full"><label>Package Name</label><input id="f-name" value="${item?.name||''}"></div>
-      <div class="fg"><label>Price</label><input id="f-price" value="${item?.price||''}"></div>
-      <div class="fg"><label>Tag (e.g. Most Popular)</label><input id="f-tag" value="${item?.tag||''}"></div>
+      <div class="fg full"><label>Package Name</label><input id="f-name" value="${esc(item?.name)}"></div>
+      <div class="fg"><label>Price</label><input id="f-price" value="${esc(item?.price)}"></div>
+      <div class="fg"><label>Tag (e.g. Most Popular)</label><input id="f-tag" value="${esc(item?.tag)}"></div>
       <div class="fg full">
         <label>What's Included</label>
         <div class="inc-editor" id="inc-editor">
           ${(item?.includes||['']).map(inc=>`
             <div class="inc-row">
-              <input value="${inc}" placeholder="Included item...">
+              <input value="${esc(inc)}" placeholder="Included item...">
               <button class="inc-del" onclick="removeInc(this)">×</button>
             </div>`).join('')}
         </div>
         <button class="inc-add" onclick="addInc()">+ Add Item</button>
       </div>
-      <div class="fg full"><label>Note (optional)</label><input id="f-note" value="${item?.note||''}" placeholder="e.g. stacking fee: $150"></div>
+      <div class="fg full"><label>Note (optional)</label><input id="f-note" value="${esc(item?.note)}" placeholder="e.g. stacking fee: $150"></div>
       <div class="fg full">
         <div class="chk-row">
           <input type="checkbox" id="f-highlight" ${item?.highlight?'checked':''}>
@@ -961,16 +1040,16 @@ function buildForm(type, item){
           <div id="gallery-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
         <div id="gallery-thumbs-wrap" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          ${(item?.gallery||[]).map(url=>`<img src="${url}" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
+          ${(item?.gallery||[]).map(url=>`<img src="${esc(url)}" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1.5px solid var(--rose-light)">`).join('')}
         </div>
-        <textarea id="f-gallery" style="display:none">${(item?.gallery||[]).join('\n')}</textarea>
+        <textarea id="f-gallery" style="display:none">${esc((item?.gallery||[]).join('\n'))}</textarea>
       </div>
       <div class="fg full">
         <label>Video</label>
         <div style="border:2px dashed var(--gray-l);border-radius:12px;padding:1.5rem;background:var(--off);text-align:center">
           <div id="video-preview-wrap">
             ${item?.video 
-              ? `<video src="${item.video}" style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block" controls></video>`
+              ? `<video src="${esc(item.video)}" style="width:100%;max-height:200px;border-radius:8px;margin-bottom:8px;display:block" controls></video>`
               : `<div style="font-size:2.5rem;margin-bottom:6px">🎬</div>`}
           </div>
           <button type="button" onclick="uploadVideo('f-video','video-preview-wrap')"
@@ -980,15 +1059,15 @@ function buildForm(type, item){
           <div style="font-size:12px;color:var(--gray);margin-top:6px">MP4, MOV supported</div>
           <div id="video-upload-status" style="display:none;font-size:13px;color:var(--rose);font-weight:700;margin-top:8px"></div>
         </div>
-        <input id="f-video" type="hidden" value="${item?.video||''}">
+        <input id="f-video" type="hidden" value="${esc(item?.video)}">
       </div>
     </div>`;
 
   if(type==='review') return `
     <div class="form-grid">
-      <div class="fg"><label>Client Name</label><input id="f-name" value="${item?.name||''}"></div>
-      <div class="fg"><label>Event Type</label><input id="f-event" value="${item?.event||''}"></div>
-      <div class="fg full"><label>Review Text</label><textarea id="f-text" style="min-height:120px">${item?.text||''}</textarea></div>
+      <div class="fg"><label>Client Name</label><input id="f-name" value="${esc(item?.name)}"></div>
+      <div class="fg"><label>Event Type</label><input id="f-event" value="${esc(item?.event)}"></div>
+      <div class="fg full"><label>Review Text</label><textarea id="f-text" style="min-height:120px">${esc(item?.text)}</textarea></div>
       <div class="fg"><label>Stars</label>
         <select id="f-stars">
           ${[5,4,3,2,1].map(n=>`<option value="${n}" ${item?.stars===n?'selected':''}>${n} ★</option>`).join('')}
@@ -998,8 +1077,8 @@ function buildForm(type, item){
 
   if(type==='faq') return `
     <div class="form-grid">
-      <div class="fg full"><label>Question</label><input id="f-question" value="${item?.question||''}"></div>
-      <div class="fg full"><label>Answer</label><textarea id="f-answer" style="min-height:120px">${item?.answer||''}</textarea></div>
+      <div class="fg full"><label>Question</label><input id="f-question" value="${esc(item?.question)}"></div>
+      <div class="fg full"><label>Answer</label><textarea id="f-answer" style="min-height:120px">${esc(item?.answer)}</textarea></div>
     </div>`;
 }
 
@@ -1011,7 +1090,7 @@ function imgUploadField(currentImg, fieldId='main'){
     <div style="border:2px dashed var(--rose-light);border-radius:12px;padding:1.5rem;background:var(--rose-pale);text-align:center">
       <div id="img-preview-wrap-${fieldId}">
         ${currentImg 
-          ? `<img src="${currentImg}" id="img-preview-${fieldId}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:12px;display:block">`
+          ? `<img src="${esc(currentImg)}" id="img-preview-${fieldId}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:12px;display:block">`
           : `<div style="font-size:3rem;margin-bottom:8px">📷</div>`}
       </div>
       <div id="upload-progress-${fieldId}" style="display:none;margin-bottom:8px">
@@ -1024,7 +1103,7 @@ function imgUploadField(currentImg, fieldId='main'){
         style="padding:10px 22px;background:var(--rose);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-b)">
         📷 ${currentImg ? 'Change Photo' : 'Upload Photo'}
       </button>
-      <input type="hidden" id="f-img-url-${fieldId}" value="${currentImg||''}">
+      <input type="hidden" id="f-img-url-${fieldId}" value="${esc(currentImg)}">
     </div>`;
 }
 
@@ -1241,7 +1320,7 @@ const STATUS_CSS = {
 async function loadInquiries(){
   try {
     const res = await fetch(API_URL + '/api/inquiries', {
-      headers: { 'x-admin-secret': ADMIN_SECRET }
+      headers: authHeaders()
     });
     const result = await res.json();
     // Handle both array and error responses
@@ -1276,13 +1355,13 @@ function renderInquiries(){
     const date = inq['Event Date'] || '';
     const created = inq.createdAt ? new Date(inq.createdAt).toLocaleDateString() : '';
     return `
-      <div class="inq-row" onclick="openPanel('${inq.id}')">
+      <div class="inq-row" onclick="openPanel('${esc(inq.id)}')">
         <span class="inq-status ${STATUS_CSS[inq.status] || 'status-new'}">${STATUS_LABELS[inq.status] || '🟡 New'}</span>
         <div class="inq-info">
-          <div class="inq-name">${name} ${lastName}</div>
-          <div class="inq-meta">${email}${eventType ? ' · ' + eventType : ''}${date ? ' · ' + date : ''}</div>
+          <div class="inq-name">${esc(name)} ${esc(lastName)}</div>
+          <div class="inq-meta">${esc(email)}${eventType ? ' · ' + esc(eventType) : ''}${date ? ' · ' + esc(fmtDay(date) || date) : ''}</div>
         </div>
-        <div class="inq-date">${created}</div>
+        <div class="inq-date">${esc(created)}</div>
       </div>
     `;
   }).join('');
@@ -1308,13 +1387,13 @@ function openPanel(id){
   const skip = ['id','status','comment','createdAt'];
   const fieldsHtml = Object.entries(inq)
     .filter(([k]) => !skip.includes(k))
-    .map(([k,v]) => v ? `<div class="panel-field"><label>${k}</label><p>${v}</p></div>` : '')
+    .map(([k,v]) => v ? `<div class="panel-field"><label>${esc(k)}</label><p style="white-space:pre-line">${esc(v)}</p></div>` : '')
     .join('');
   document.getElementById('panel-fields').innerHTML = fieldsHtml;
 
   // Set event date in booking form if available
-  const eventDate = inq['Event Date'] || '';
-  if(eventDate && document.getElementById('bk-date')){
+  const eventDate = dayKey(inq['Event Date']);
+  if(document.getElementById('bk-date')){
     document.getElementById('bk-date').value = eventDate;
   }
 
@@ -1339,7 +1418,7 @@ async function updateStatus(){
   try {
     await fetch(API_URL + '/api/inquiry/' + currentInqId, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify({ status })
     });
     const inq = allInquiries.find(i => i.id === currentInqId);
@@ -1354,16 +1433,11 @@ async function convertInquiryToProject(inqId){
   const inq = allInquiries.find(i => i.id === inqId);
   if(!inq) return;
   try {
-    // Check if project already exists
-    const projRes = await fetch(API_URL + '/api/projects', { headers: { 'x-admin-secret': ADMIN_SECRET } });
-    const projects = await projRes.json();
-    const exists = projects.find(p => p.inquiry_id === inqId);
-    if(exists) return; // Already exists
-
+    // The server returns the existing project if this inquiry was already converted
     const clientName = (inq['First Name'] || inq['First Name *'] || '') + ' ' + (inq['Last Name'] || inq['Last Name *'] || '');
-    await fetch(API_URL + '/api/projects', {
+    const res = await fetch(API_URL + '/api/projects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify({
         inquiry_id: inqId,
         client_name: clientName.trim() || inq.name || 'Unknown',
@@ -1379,8 +1453,17 @@ async function convertInquiryToProject(inqId){
         status: 'new'
       })
     });
+    const result = await res.json();
+    if(!res.ok){ alert(result.error || 'Failed to create project'); return; }
+    // Moving the inquiry past "New" hides it from the Inquiries list - it lives on as a project
+    if((inq.status || 'new') === 'new'){
+      await fetch(API_URL + '/api/inquiry/' + inqId, { method: 'PATCH', headers: authHeaders(true), body: JSON.stringify({ status: 'inprogress' }) });
+      inq.status = 'inprogress';
+      renderInquiries();
+    }
+    loadProjects();
     const m = document.getElementById('saved-msg');
-    m.textContent = '✓ Project created!';
+    m.textContent = result.existed ? '✓ Project already exists' : '✓ Project created!';
     m.style.display = 'inline';
     setTimeout(()=>{ m.style.display='none'; m.textContent='✓ Saved!'; }, 3000);
   } catch(e) { console.log('Convert failed', e); }
@@ -1394,7 +1477,7 @@ async function saveComment(){
   try {
     await fetch(API_URL + '/api/inquiry/' + currentInqId, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify({ comment })
     });
     const inq = allInquiries.find(i => i.id === currentInqId);
@@ -1416,9 +1499,10 @@ let allInventory = [];
 async function loadInventory(){
   try {
     const res = await fetch(API_URL + '/api/inventory', {
-      headers: { 'x-admin-secret': ADMIN_SECRET }
+      headers: authHeaders()
     });
-    allInventory = await res.json();
+    const data = await res.json();
+    allInventory = Array.isArray(data) ? data : [];
     renderInventory();
   } catch(e) {
     console.log('Failed to load inventory', e);
@@ -1428,7 +1512,9 @@ async function loadInventory(){
 function renderInventory(){
   const grid = document.getElementById('inv-grid');
   const warnings = document.getElementById('inv-warnings');
-  if(!allInventory.length){
+  if(!Array.isArray(allInventory) || !allInventory.length){
+    allInventory = [];
+    warnings.innerHTML = '';
     grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>No inventory items yet.<br>Add your equipment to start tracking.</p></div>';
     return;
   }
@@ -1437,7 +1523,7 @@ function renderInventory(){
   const overbooked = allInventory.filter(i => i.available < 0);
   if(overbooked.length){
     warnings.innerHTML = overbooked.map(i => `
-      <div class="warning-badge">⚠️ <strong>${i.name}</strong>: Need ${Math.abs(i.available)} more! (Have ${i.total_qty}, Using ${i.in_use})</div>
+      <div class="warning-badge">⚠️ <strong>${esc(i.name)}</strong>: Need ${Math.abs(i.available)} more! (Have ${i.total_qty}, Using ${i.in_use})</div>
     `).join('');
   } else {
     warnings.innerHTML = '';
@@ -1449,8 +1535,8 @@ function renderInventory(){
     const availColor = item.available <= 0 ? 'color:var(--red)' : item.available <= 1 ? 'color:#C9A96E' : 'color:#2E7D52';
     return `
       <div class="inv-card">
-        <div class="inv-card-name">${item.name}</div>
-        <div class="inv-card-cat">${item.category || 'Uncategorized'}</div>
+        <div class="inv-card-name">${esc(item.name)}</div>
+        <div class="inv-card-cat">${esc(item.category || 'Uncategorized')}</div>
         <div class="inv-numbers">
           <div class="inv-num-item"><strong>${item.total_qty}</strong><span>Total</span></div>
           <div class="inv-num-item"><strong style="color:var(--rose)">${item.in_use}</strong><span>In Use</span></div>
@@ -1471,7 +1557,7 @@ async function deleteInvItem(id){
   try {
     await fetch(API_URL + '/api/inventory/' + id, {
       method: 'DELETE',
-      headers: { 'x-admin-secret': ADMIN_SECRET }
+      headers: authHeaders()
     });
     loadInventory();
   } catch(e) { console.log('Delete failed', e); }
@@ -1501,8 +1587,9 @@ const PROJ_STATUSES = {
 
 async function loadProjects(){
   try {
-    const res = await fetch(API_URL + '/api/projects', { headers: { 'x-admin-secret': ADMIN_SECRET } });
-    allProjects = await res.json();
+    const res = await fetch(API_URL + '/api/projects', { headers: authHeaders() });
+    const data = await res.json();
+    allProjects = Array.isArray(data) ? data : [];
     populateProjectFilterOptions();
     renderProjects();
     if(document.getElementById('tab-calendar')?.classList.contains('active')) renderCalendar();
@@ -1526,7 +1613,7 @@ function populateProjectFilterOptions(){
     const prevValue = citySel.value || 'all';
     const cities = [...new Set(allProjects.map(p => (p.event_address||'').trim()).filter(Boolean))].sort();
     citySel.innerHTML = '<option value="all">All Cities</option>' +
-      cities.map(c => `<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
+      cities.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     citySel.value = cities.includes(prevValue) ? prevValue : 'all';
   }
 }
@@ -1582,7 +1669,7 @@ function renderCalendar(){
   const depositProjects = (allProjects||[]).filter(p => p.status === 'deposit_paid' && p.event_date);
   const byDay = {}; // 'YYYY-MM-DD' -> [projects]
   depositProjects.forEach(p => {
-    const d = p.event_date.split('T')[0];
+    const d = dayKey(p.event_date);
     (byDay[d] = byDay[d] || []).push(p);
   });
 
@@ -1604,8 +1691,8 @@ function renderCalendar(){
       <div style="min-height:96px;background:white;border-radius:10px;border:1.5px solid ${isToday?'var(--rose)':'var(--gray-l)'};padding:8px;display:flex;flex-direction:column;gap:5px">
         <div style="font-size:12px;font-weight:700;color:${isToday?'var(--rose)':'var(--gray)'}">${day}</div>
         ${events.map(p => `
-          <div onclick="openProjectFromCalendar('${p.id}')" style="cursor:pointer;background:var(--rose-pale);border:1px solid var(--rose-light);border-radius:6px;padding:4px 6px;font-size:11px;font-weight:600;color:var(--rose-dark);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(p.client_name||'Client').replace(/"/g,'&quot;')} — ${p.event_type||''}">
-            💚 ${p.client_name||'Client'}${p.assigned_staff_name ? ' · 👤 '+p.assigned_staff_name : ''}${p.work_status==='done' ? ' ✅' : ''}
+          <div onclick="openProjectFromCalendar('${esc(p.id)}')" style="cursor:pointer;background:var(--rose-pale);border:1px solid var(--rose-light);border-radius:6px;padding:4px 6px;font-size:11px;font-weight:600;color:var(--rose-dark);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(p.client_name||'Client')} — ${esc(p.event_type)}">
+            💚 ${esc(p.client_name||'Client')}${p.assigned_staff_name ? ' · 👤 '+esc(p.assigned_staff_name) : ''}${p.work_status==='done' ? ' ✅' : ''}
           </div>
         `).join('')}
       </div>
@@ -1624,8 +1711,9 @@ let allStaff = [];
 
 async function loadStaff(){
   try {
-    const res = await fetch(API_URL + '/api/staff', { headers: { 'x-admin-secret': ADMIN_SECRET } });
-    allStaff = await res.json();
+    const res = await fetch(API_URL + '/api/staff', { headers: authHeaders() });
+    const data = await res.json();
+    allStaff = Array.isArray(data) ? data : [];
     renderStaff();
   } catch(e){ console.log('Failed to load staff', e); }
 }
@@ -1640,8 +1728,8 @@ function renderStaff(){
   list.innerHTML = allStaff.map(s => `
     <div class="list-row">
       <div class="list-row-body">
-        <div class="list-row-title">${s.name} ${s.active ? '' : '<span style="color:var(--red);font-size:12px">(disabled)</span>'}</div>
-        <div class="list-row-sub">Login: ${s.login}${s.phone ? ' · 📞 ' + s.phone : ''}</div>
+        <div class="list-row-title">${esc(s.name)} ${s.active ? '' : '<span style="color:var(--red);font-size:12px">(disabled)</span>'}</div>
+        <div class="list-row-sub">Login: ${esc(s.login)}${s.phone ? ' · 📞 ' + esc(s.phone) : ''} · Rate: $${(parseFloat(s.pay_rate)||0).toFixed(2)}/order</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
         <button class="btn-edit" onclick="openStaffModal('${s.id}')">✏ Edit</button>
@@ -1657,9 +1745,9 @@ function openStaffModal(id){
   document.getElementById('modal-title').textContent = s ? 'Edit Staff' : 'Add Staff';
   document.getElementById('modal-body').innerHTML = `
   <div class="form-grid">
-    <div class="fg full"><label>Name *</label><input type="text" id="stf-name" value="${s ? s.name.replace(/"/g,'&quot;') : ''}" placeholder="John Smith"></div>
-    <div class="fg"><label>Phone</label><input type="text" id="stf-phone" value="${s ? (s.phone||'').replace(/"/g,'&quot;') : ''}" placeholder="+1 202 555 0100"></div>
-    <div class="fg"><label>Login *</label><input type="text" id="stf-login" value="${s ? s.login.replace(/"/g,'&quot;') : ''}" placeholder="john"></div>
+    <div class="fg full"><label>Name *</label><input type="text" id="stf-name" value="${s ? esc(s.name) : ''}" placeholder="John Smith"></div>
+    <div class="fg"><label>Phone</label><input type="text" id="stf-phone" value="${s ? esc(s.phone) : ''}" placeholder="+1 202 555 0100"></div>
+    <div class="fg"><label>Login *</label><input type="text" id="stf-login" value="${s ? esc(s.login) : ''}" placeholder="john"></div>
     <div class="fg full"><label>Password ${s ? '(leave empty to keep current)' : '*'}</label><input type="text" id="stf-pass" value="" placeholder="${s ? '••••••' : 'password'}"></div>
     <div class="fg full"><label>Pay per completed order ($)</label><input type="number" step="0.01" id="stf-rate" value="${s ? (s.pay_rate||0) : ''}" placeholder="e.g. 50"></div>
     ${s ? `<div class="fg full"><label>Active</label><select id="stf-active"><option value="1" ${s.active?'selected':''}>✅ Active</option><option value="0" ${!s.active?'selected':''}>⛔ Disabled</option></select></div>` : ''}
@@ -1686,7 +1774,7 @@ async function saveStaffFromModal(){
     const url = id ? API_URL+'/api/staff/'+id : API_URL+'/api/staff';
     const res = await fetch(url, {
       method: id ? 'PATCH' : 'POST',
-      headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET},
+      headers: authHeaders(true),
       body: JSON.stringify(data)
     });
     const result = await res.json();
@@ -1699,28 +1787,28 @@ async function saveStaffFromModal(){
 async function deleteStaff(id){
   if(!confirm('Delete this staff member? Their assigned orders will become unassigned.')) return;
   try {
-    await fetch(API_URL + '/api/staff/' + id, { method: 'DELETE', headers: { 'x-admin-secret': ADMIN_SECRET } });
+    await fetch(API_URL + '/api/staff/' + id, { method: 'DELETE', headers: authHeaders() });
     loadStaff();
   } catch(e){ console.log('Delete staff failed', e); }
 }
 
 async function loadProjectStaffUI(proj){
   if(!proj) return;
-  if(!allStaff.length){ try { const r = await fetch(API_URL+'/api/staff',{headers:{'x-admin-secret':ADMIN_SECRET}}); allStaff = await r.json(); } catch(e){} }
+  if(!allStaff.length){ try { const r = await fetch(API_URL+'/api/staff',{headers:authHeaders()}); const d = await r.json(); allStaff = Array.isArray(d) ? d : []; } catch(e){} }
   const sel = document.getElementById('proj-staff-select');
   if(sel){
     sel.innerHTML = '<option value="">— Not assigned —</option>' +
-      allStaff.filter(s => s.active).map(s => `<option value="${s.id}" ${proj.assigned_staff_id===s.id?'selected':''}>${s.name}</option>`).join('');
+      allStaff.filter(s => s.active || s.id === proj.assigned_staff_id).map(s => `<option value="${esc(s.id)}" ${proj.assigned_staff_id===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
   }
   const box = document.getElementById('proj-staff-responses');
   if(box){
     try {
-      const res = await fetch(API_URL + '/api/projects/' + proj.id + '/responses', { headers: { 'x-admin-secret': ADMIN_SECRET } });
+      const res = await fetch(API_URL + '/api/projects/' + proj.id + '/responses', { headers: authHeaders() });
       const responses = await res.json();
-      if(responses.length){
+      if(Array.isArray(responses) && responses.length){
         const RESP_LABELS = { accept: '✅ Accepted', decline: "❌ Can't do it", busy: '📋 Has another order' };
         box.innerHTML = '<div style="font-weight:700;font-size:12px;margin-bottom:4px">Responses:</div>' +
-          responses.map(r => `<div>${r.staff_name} — ${RESP_LABELS[r.response]||r.response}</div>`).join('');
+          responses.map(r => `<div>${esc(r.staff_name)} — ${RESP_LABELS[r.response]||esc(r.response)}</div>`).join('');
       } else {
         box.innerHTML = '<span style="font-size:12px">No responses from staff yet</span>';
       }
@@ -1729,34 +1817,37 @@ async function loadProjectStaffUI(proj){
 }
 
 // ===== PAYROLL =====
+let payrollRows = [];
 async function loadPayroll(){
   const list = document.getElementById('payroll-list');
   try {
-    const res = await fetch(API_URL + '/api/payroll', { headers: { 'x-admin-secret': ADMIN_SECRET } });
+    const res = await fetch(API_URL + '/api/payroll', { headers: authHeaders() });
     const rows = await res.json();
-    if(!rows.length){
+    if(!Array.isArray(rows) || !rows.length){
       list.innerHTML = '<div class="empty-state"><div class="empty-icon">💰</div><p>No staff yet.<br>Add team members in the Staff tab first.</p></div>';
       return;
     }
-    const fmt = n => '$' + (parseFloat(n)||0).toFixed(2);
+    const fmt = n => { const v = parseFloat(n)||0; return (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2); };
+    payrollRows = rows;
     list.innerHTML = rows.map(r => `
       <div class="list-row">
         <div class="list-row-body">
-          <div class="list-row-title">${r.name} ${r.active ? '' : '<span style="color:var(--red);font-size:12px">(disabled)</span>'}</div>
+          <div class="list-row-title">${esc(r.name)} ${r.active ? '' : '<span style="color:var(--red);font-size:12px">(disabled)</span>'}</div>
           <div class="list-row-sub">
             Rate: ${fmt(r.pay_rate)}/order · Completed: ${r.completed_orders} · Earned: ${fmt(r.earned)} · Paid: ${fmt(r.paid)} ·
             <b style="color:${r.balance > 0 ? 'var(--red)' : 'var(--green)'}">Balance: ${fmt(r.balance)}</b>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-          <button class="btn-edit" onclick="addPayment('${r.id}','${r.name.replace(/'/g,"\\'")}')">💵 Pay</button>
+          <button class="btn-edit" onclick="addPayment('${esc(r.id)}')">💵 Pay</button>
         </div>
       </div>
     `).join('');
   } catch(e){ console.log('Payroll load failed', e); }
 }
 
-async function addPayment(staffId, staffName){
+async function addPayment(staffId){
+  const staffName = (payrollRows.find(r => r.id === staffId) || {}).name || 'staff member';
   const amount = prompt('Payment amount ($) for ' + staffName + ':');
   if(amount === null) return;
   const num = parseFloat(amount);
@@ -1765,7 +1856,7 @@ async function addPayment(staffId, staffName){
   try {
     const res = await fetch(API_URL + '/api/staff/' + staffId + '/payments', {
       method: 'POST',
-      headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET},
+      headers: authHeaders(true),
       body: JSON.stringify({ amount: num, note })
     });
     if(!res.ok){ const d = await res.json(); alert(d.error || 'Failed'); return; }
@@ -1775,17 +1866,19 @@ async function addPayment(staffId, staffName){
 
 async function assignStaff(projectId, staffId){
   try {
-    await fetch(API_URL + '/api/projects/' + projectId, {
+    const res = await fetch(API_URL + '/api/projects/' + projectId, {
       method: 'PATCH',
-      headers: {'Content-Type':'application/json','x-admin-secret':ADMIN_SECRET},
+      headers: authHeaders(true),
       body: JSON.stringify({ assigned_staff_id: staffId || null })
     });
+    if(!res.ok){ alert('Failed to assign staff'); return; }
     const p = allProjects.find(x => x.id === projectId);
     if(p){
       p.assigned_staff_id = staffId || null;
       const s = allStaff.find(x => x.id === staffId);
       p.assigned_staff_name = s ? s.name : null;
     }
+    renderProjects();
     renderCalendar();
   } catch(e){ console.log('Assign failed', e); }
 }
@@ -1805,13 +1898,13 @@ function renderProjects(){
   }
   list.innerHTML = filtered.map(p => {
     const st = PROJ_STATUSES[p.status] || PROJ_STATUSES.new;
-    const date = p.event_date ? new Date(p.event_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'No date';
+    const date = fmtDay(p.event_date) || 'No date';
     return `
-      <div class="proj-row" onclick="openProject('${p.id}')">
+      <div class="proj-row" onclick="openProject('${esc(p.id)}')">
         <span class="proj-status ${st.css}">${st.label}</span>
         <div class="proj-info">
-          <div class="proj-name">${p.client_name || 'Unknown Client'}</div>
-          <div class="proj-meta">${p.event_type||''} ${p.event_address ? '· '+p.event_address : ''}${p.assigned_staff_name ? ' · 👤 '+p.assigned_staff_name : ''}</div>
+          <div class="proj-name">${esc(p.client_name || 'Unknown Client')}</div>
+          <div class="proj-meta">${esc(p.event_type)} ${p.event_address ? '· '+esc(p.event_address) : ''}${p.assigned_staff_name ? ' · 👤 '+esc(p.assigned_staff_name) : ''}</div>
         </div>
         <div class="proj-date">${date}</div>
       </div>
@@ -1831,10 +1924,11 @@ async function openProject(id){
   currentProjectId = id;
   currentInqId = null; // leaving inquiry context so bookings/convert actions target the project
   const proj = allProjects.find(p => p.id === id);
+  if(!proj) return;
   // Open side panel with project details
   document.getElementById('side-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
-  document.getElementById('panel-name').textContent = proj?.client_name || 'Project';
+  document.getElementById('panel-name').textContent = proj.client_name || 'Project';
   document.getElementById('panel-fields').innerHTML = buildProjectPanel(proj);
   document.getElementById('panel-status').style.display = 'none';
   document.getElementById('panel-comment').closest('.panel-field').style.display = 'none';
@@ -1844,8 +1938,7 @@ async function openProject(id){
   // Load quotes
   loadProjectQuotes(id);
   // Load rented items already tied to this project (including ones carried over from the inquiry)
-  const eventDate = proj?.event_date ? new Date(proj.event_date).toISOString().slice(0,10) : '';
-  if(eventDate && document.getElementById('bk-date')) document.getElementById('bk-date').value = eventDate;
+  if(document.getElementById('bk-date')) document.getElementById('bk-date').value = dayKey(proj.event_date);
   loadProjectBookings(id);
   if(allInventory.length) populateInventorySelect();
   else loadInventory().then(() => populateInventorySelect());
@@ -1864,14 +1957,15 @@ function buildProjectPanel(p){
       </select>
     </div>
     <hr class="panel-divider">
-    ${p.client_email ? `<div class="panel-field"><label>Email</label><p><a href="mailto:${p.client_email}" style="color:var(--rose)">${p.client_email}</a></p></div>` : ''}
-    ${p.client_phone ? `<div class="panel-field"><label>Phone</label><p><a href="tel:${p.client_phone}" style="color:var(--rose)">${p.client_phone}</a></p></div>` : ''}
-    ${p.event_type ? `<div class="panel-field"><label>Event Type</label><p>${p.event_type}</p></div>` : ''}
-    ${p.event_date ? `<div class="panel-field"><label>Event Date</label><p>${new Date(p.event_date).toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>` : ''}
-    ${p.event_address ? `<div class="panel-field"><label>Venue</label><p>${p.event_address}</p></div>` : ''}
-    ${p.event_time ? `<div class="panel-field"><label>Schedule</label><p>${p.event_time}</p></div>` : ''}
-    ${p.source ? `<div class="panel-field"><label>Source</label><p>${p.source}</p></div>` : ''}
-    ${p.notes ? `<div class="panel-field"><label>Notes</label><p>${p.notes}</p></div>` : ''}
+    ${p.client_email ? `<div class="panel-field"><label>Email</label><p><a href="mailto:${esc(p.client_email)}" style="color:var(--rose)">${esc(p.client_email)}</a></p></div>` : ''}
+    ${p.client_phone ? `<div class="panel-field"><label>Phone</label><p><a href="tel:${esc(p.client_phone.replace(/[^\d+]/g,''))}" style="color:var(--rose)">${esc(p.client_phone)}</a></p></div>` : ''}
+    ${p.event_type ? `<div class="panel-field"><label>Event Type</label><p>${esc(p.event_type)}</p></div>` : ''}
+    ${p.event_date ? `<div class="panel-field"><label>Event Date</label><p>${fmtDay(p.event_date,{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>` : ''}
+    ${p.event_address ? `<div class="panel-field"><label>Venue</label><p>${esc(p.event_address)}</p></div>` : ''}
+    ${p.location_type ? `<div class="panel-field"><label>Indoor / Outdoor</label><p>${esc(p.location_type)}</p></div>` : ''}
+    ${p.event_time ? `<div class="panel-field"><label>Schedule</label><p>${esc(p.event_time)}</p></div>` : ''}
+    ${p.source ? `<div class="panel-field"><label>Source</label><p>${esc(p.source)}</p></div>` : ''}
+    ${p.notes ? `<div class="panel-field"><label>Notes</label><p style="white-space:pre-line">${esc(p.notes)}</p></div>` : ''}
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-edit" onclick="editProject('${p.id}')" style="flex:1">✏ Edit</button>
       <button class="btn-del" onclick="deleteProject('${p.id}')">🗑 Delete</button>
@@ -1892,17 +1986,18 @@ function buildProjectPanel(p){
 
 async function loadProjectQuotes(projectId){
   try {
-    const res = await fetch(API_URL + '/api/quotes/project/' + projectId, { headers: { 'x-admin-secret': ADMIN_SECRET } });
+    const res = await fetch(API_URL + '/api/quotes/project/' + projectId, { headers: authHeaders() });
     const quotes = await res.json();
     const el = document.getElementById('proj-quotes-list');
-    if(!quotes.length){
+    if(!el) return;
+    if(!Array.isArray(quotes) || !quotes.length){
       el.innerHTML = '<p style="font-size:13px;color:var(--gray)">No quotes yet</p>';
       return;
     }
     el.innerHTML = quotes.map(q => `
       <div style="background:var(--off);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--gray-l)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <div style="font-weight:600;font-size:14px">${q.title}</div>
+          <div style="font-weight:600;font-size:14px">${esc(q.title)} <span style="font-size:11px;color:var(--gray);font-weight:500">${q.status==='sent'?'· sent':''}</span></div>
           <div style="font-family:var(--font-d);font-size:1.1rem;color:var(--rose);font-weight:700">$${parseFloat(q.total).toFixed(2)}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1918,23 +2013,29 @@ async function loadProjectQuotes(projectId){
 
 async function updateProjectStatus(id, status){
   try {
-    await fetch(API_URL + '/api/projects/' + id, {
+    const res = await fetch(API_URL + '/api/projects/' + id, {
       method: 'PATCH',
-      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify({ status })
     });
+    if(!res.ok){ alert('Failed to update status'); return; }
     const p = allProjects.find(x => x.id === id);
     if(p) p.status = status;
     renderProjects();
+    renderCalendar();
+    // Cancelling releases the reserved items - refresh the list in the panel
+    if(status === 'cancelled' && currentProjectId === id) loadProjectBookings(id);
   } catch(e) { console.log('Status update failed', e); }
 }
 
 async function deleteProject(id){
-  if(!confirm('Delete this project and all its quotes?')) return;
+  if(!confirm('Delete this project with all its quotes and reserved items?')) return;
   try {
-    await fetch(API_URL + '/api/projects/' + id, { method: 'DELETE', headers: { 'x-admin-secret': ADMIN_SECRET } });
+    const res = await fetch(API_URL + '/api/projects/' + id, { method: 'DELETE', headers: authHeaders() });
+    if(!res.ok){ alert('Delete failed'); return; }
     allProjects = allProjects.filter(p => p.id !== id);
     renderProjects();
+    renderCalendar();
     closePanel();
   } catch(e) { console.log('Delete failed', e); }
 }
@@ -1948,28 +2049,32 @@ function editProject(id){
   document.getElementById('modal-bg').classList.add('open');
 }
 
+function optionsWithCurrent(list, current){
+  const all = current && !list.includes(current) ? [...list, current] : list;
+  return all.map(v => `<option value="${esc(v)}" ${current===v?'selected':''}>${esc(v)}</option>`).join('');
+}
 function buildProjectForm(p){
   return `
     <div class="form-grid">
-      <div class="fg"><label>Client Name *</label><input id="pf-name" value="${p?.client_name||''}" placeholder="Jane Smith"></div>
-      <div class="fg"><label>Email</label><input id="pf-email" type="email" value="${p?.client_email||''}" placeholder="jane@email.com"></div>
-      <div class="fg"><label>Phone</label><input id="pf-phone" value="${p?.client_phone||''}" placeholder="(555) 000-0000"></div>
+      <div class="fg"><label>Client Name *</label><input id="pf-name" value="${esc(p?.client_name)}" placeholder="Jane Smith"></div>
+      <div class="fg"><label>Email</label><input id="pf-email" type="email" value="${esc(p?.client_email)}" placeholder="jane@email.com"></div>
+      <div class="fg"><label>Phone</label><input id="pf-phone" value="${esc(p?.client_phone)}" placeholder="(555) 000-0000"></div>
       <div class="fg"><label>Event Type</label>
         <select id="pf-type">
           <option value="">Select...</option>
-          ${['Wedding','Birthday Party','Proposal','Corporate Event','Baby Shower','Quinceañera','Sweet 16','Other'].map(t=>`<option value="${t}" ${p?.event_type===t?'selected':''}>${t}</option>`).join('')}
+          ${optionsWithCurrent(['Wedding','Birthday Party','Proposal','Corporate Event','Baby Shower','Quinceañera','Sweet 16','Other'], p?.event_type)}
         </select>
       </div>
-      <div class="fg"><label>Event Date</label><input id="pf-date" type="date" value="${p?.event_date?.split('T')[0]||''}"></div>
+      <div class="fg"><label>Event Date</label><input id="pf-date" type="date" value="${esc(dayKey(p?.event_date))}"></div>
       <div class="fg"><label>Source</label>
         <select id="pf-source">
           <option value="">Select...</option>
-          ${['Google','Instagram','Facebook','TikTok','Referral','The Knot','WeddingWire','Other'].map(s=>`<option value="${s}" ${p?.source===s?'selected':''}>${s}</option>`).join('')}
+          ${optionsWithCurrent(['Google Search','Instagram','Facebook','TikTok','Friend / Family Referral','Yelp','The Knot','WeddingWire','Other'], p?.source)}
         </select>
       </div>
-      <div class="fg full"><label>Venue / Address</label><input id="pf-address" value="${p?.event_address||''}" placeholder="Washington DC"></div>
-      <div class="fg full"><label>Schedule (Setup/Start/End)</label><input id="pf-time" value="${p?.event_time||''}" placeholder="Setup 4pm · Start 6pm · End 10pm"></div>
-      <div class="fg full"><label>Notes</label><textarea id="pf-notes">${p?.notes||''}</textarea></div>
+      <div class="fg full"><label>Venue / Address</label><input id="pf-address" value="${esc(p?.event_address)}" placeholder="Washington DC"></div>
+      <div class="fg full"><label>Schedule (Setup/Start/End)</label><input id="pf-time" value="${esc(p?.event_time)}" placeholder="Setup 4pm · Start 6pm · End 10pm"></div>
+      <div class="fg full"><label>Notes</label><textarea id="pf-notes">${esc(p?.notes)}</textarea></div>
     </div>
   `;
 }
@@ -1991,12 +2096,14 @@ function openNewQuote(projectId){
 async function openQuoteEdit(quoteId){
   try {
     const res = await fetch(API_URL + '/api/quote/' + quoteId + '/public');
+    if(!res.ok){ alert('Quote not found'); return; }
     const q = await res.json();
     currentQuoteProjectId = q.project_id;
     quoteItems = q.items || [];
     CM = { type: 'quote', idx: quoteId };
     document.getElementById('modal-title').textContent = 'Edit Quote';
     document.getElementById('modal-body').innerHTML = buildQuoteForm(q);
+    calcQuoteTotal();
     document.getElementById('modal-bg').classList.add('open');
   } catch(e) { console.log('Load quote failed', e); }
 }
@@ -2004,7 +2111,7 @@ async function openQuoteEdit(quoteId){
 function buildQuoteForm(q){
   return `
     <div class="form-grid">
-      <div class="fg full"><label>Quote Title</label><input id="qf-title" value="${q?.title||'Event Quote'}" placeholder="Event Quote"></div>
+      <div class="fg full"><label>Quote Title</label><input id="qf-title" value="${esc(q?.title||'Event Quote')}" placeholder="Event Quote"></div>
     </div>
     <div style="margin:12px 0 6px;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.05em">Items</div>
     <div id="qi-list">
@@ -2016,19 +2123,18 @@ function buildQuoteForm(q){
       <div class="fg"><label>Tax ($)</label><input id="qf-tax" type="number" value="${q?.tax||0}" min="0" oninput="calcQuoteTotal()"></div>
       <div class="fg"><label>Deposit Required ($)</label><input id="qf-deposit" type="number" value="${q?.deposit||0}" min="0"></div>
       <div class="fg"><label>Total</label><input id="qf-total" readonly style="font-weight:700;color:var(--rose);font-family:var(--font-d);font-size:1.1rem"></div>
-      <div class="fg full"><label>Notes for Client</label><textarea id="qf-notes">${q?.notes||''}</textarea></div>
-      <div class="fg full"><label>Terms & Conditions</label><textarea id="qf-terms">${q?.terms||'Delivery, setup, and breakdown are included. A 50% deposit is required to secure your date.'}</textarea></div>
+      <div class="fg full"><label>Notes for Client</label><textarea id="qf-notes">${esc(q?.notes)}</textarea></div>
+      <div class="fg full"><label>Terms & Conditions</label><textarea id="qf-terms">${esc(q ? q.terms : 'Delivery, setup, and breakdown are included. A 50% deposit is required to secure your date.')}</textarea></div>
     </div>
   `;
-  setTimeout(calcQuoteTotal, 100);
 }
 
 function quoteItemRow(item, i){
   return `
     <div class="qi-row" id="qi-${i}">
-      <input placeholder="Item name" value="${item?.name||''}" oninput="calcQuoteTotal()">
-      <input type="number" placeholder="Qty" value="${item?.qty||1}" min="1" style="width:70px" oninput="calcQuoteTotal()">
-      <input type="number" placeholder="Price" value="${item?.price||0}" min="0" step="0.01" oninput="calcQuoteTotal()">
+      <input placeholder="Item name" value="${esc(item?.name)}" oninput="calcQuoteTotal()">
+      <input type="number" placeholder="Qty" value="${esc(item?.qty||1)}" min="1" style="width:70px" oninput="calcQuoteTotal()">
+      <input type="number" placeholder="Price" value="${esc(item?.price||0)}" min="0" step="0.01" oninput="calcQuoteTotal()">
       <button class="btn-del-qi" onclick="this.closest('.qi-row').remove();calcQuoteTotal()">×</button>
     </div>
   `;
@@ -2078,15 +2184,26 @@ function viewQuote(id){
   window.open('../pages/quote.html?id=' + id, '_blank');
 }
 
-function copyQuoteLink(id){
-  const link = location.origin + location.pathname.replace('/admin/index.html','') + '/pages/quote.html?id=' + id;
-  navigator.clipboard.writeText(link).then(() => alert('✓ Quote link copied! Send it to your client.'));
+async function copyQuoteLink(id){
+  // Works whether the admin is opened as /admin/ or /admin/index.html
+  const link = new URL('../pages/quote.html?id=' + encodeURIComponent(id), location.href).href;
+  try {
+    await navigator.clipboard.writeText(link);
+    alert('✓ Quote link copied! Send it to your client.');
+  } catch(e) {
+    prompt('Copy this link and send it to your client:', link);
+  }
+  // Mark the quote as sent so the client doesn't see "Draft"
+  try {
+    await fetch(API_URL + '/api/quotes/' + id, { method: 'PATCH', headers: authHeaders(true), body: JSON.stringify({ status: 'sent' }) });
+    if(currentProjectId) loadProjectQuotes(currentProjectId);
+  } catch(e) {}
 }
 
 async function deleteQuote(id){
   if(!confirm('Delete this quote?')) return;
   try {
-    await fetch(API_URL + '/api/quotes/' + id, { method: 'DELETE', headers: { 'x-admin-secret': ADMIN_SECRET } });
+    await fetch(API_URL + '/api/quotes/' + id, { method: 'DELETE', headers: authHeaders() });
     if(currentProjectId) loadProjectQuotes(currentProjectId);
   } catch(e) { console.log('Delete quote failed', e); }
 }
@@ -2104,9 +2221,10 @@ let panelBookings = [];
 async function loadProjectBookings(projectId){
   try {
     const res = await fetch(API_URL + '/api/bookings/project/' + projectId, {
-      headers: { 'x-admin-secret': ADMIN_SECRET }
+      headers: authHeaders()
     });
-    panelBookings = await res.json();
+    const data = await res.json();
+    panelBookings = Array.isArray(data) ? data : [];
     renderPanelBookings();
   } catch(e) {
     document.getElementById('panel-bookings').innerHTML = '<div style="font-size:13px;color:var(--gray)">No items yet</div>';
@@ -2116,9 +2234,10 @@ async function loadProjectBookings(projectId){
 async function loadPanelBookings(inquiryId){
   try {
     const res = await fetch(API_URL + '/api/bookings/inquiry/' + inquiryId, {
-      headers: { 'x-admin-secret': ADMIN_SECRET }
+      headers: authHeaders()
     });
-    panelBookings = await res.json();
+    const data = await res.json();
+    panelBookings = Array.isArray(data) ? data : [];
     renderPanelBookings();
   } catch(e) {
     document.getElementById('panel-bookings').innerHTML = '<div style="font-size:13px;color:var(--gray)">No items yet</div>';
@@ -2136,8 +2255,8 @@ function renderPanelBookings(){
 
   el.innerHTML = panelBookings.map(b => `
     <div class="booking-item">
-      <div class="booking-item-name">${b.item_name} × ${b.qty_needed}</div>
-      <div class="booking-item-meta">Event: ${b.event_date ? new Date(b.event_date).toLocaleDateString() : 'No date'}</div>
+      <div class="booking-item-name">${esc(b.item_name)} × ${esc(b.qty_needed)}</div>
+      <div class="booking-item-meta">Event: ${fmtDay(b.event_date) || 'No date'}${b.status==='cancelled' ? ' · ❌ Cancelled' : ''}</div>
       <div class="booking-status-row">
         ${['booked','issued','returned'].map(s => `
           <button class="status-pill ${s} ${b.status===s?'active':''}"
@@ -2153,17 +2272,18 @@ function renderPanelBookings(){
 
 async function updateBookingStatus(bookingId, status){
   try {
-    await fetch(API_URL + '/api/booking/' + bookingId + '/status', {
+    const res = await fetch(API_URL + '/api/booking/' + bookingId + '/status', {
       method: 'PATCH',
-      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify({ status })
     });
+    if(!res.ok){ alert('Failed to update item'); return; }
     // Update local
     const b = panelBookings.find(x => x.id === bookingId);
     if(b) b.status = status;
     renderPanelBookings();
     // Refresh inventory
-    if(document.getElementById('tab-inventory').classList.contains('active')) loadInventory();
+    loadInventory();
   } catch(e) { console.log('Status update failed', e); }
 }
 
@@ -2172,10 +2292,11 @@ async function deleteBooking(bookingId){
   try {
     await fetch(API_URL + '/api/booking/' + bookingId, {
       method: 'DELETE',
-      headers: { 'x-admin-secret': ADMIN_SECRET }
+      headers: authHeaders()
     });
     panelBookings = panelBookings.filter(b => b.id !== bookingId);
     renderPanelBookings();
+    loadInventory();
   } catch(e) { console.log('Delete failed', e); }
 }
 
@@ -2184,16 +2305,18 @@ async function addBookingItem(){
   const qty = parseInt(document.getElementById('bk-qty').value) || 1;
   const date = document.getElementById('bk-date').value;
   const itemId = select.value;
-  const itemName = select.options[select.selectedIndex]?.text;
+  // Store the clean item name (the option text also contains "(N available)")
+  const itemName = (allInventory.find(i => i.id === itemId) || {}).name || select.options[select.selectedIndex]?.text;
 
   if(!itemId){ alert('Please select an item'); return; }
   if(!date){ alert('Please select event date'); return; }
   if(!currentInqId && !currentProjectId){ return; }
+  if(qty < 1){ alert('Quantity must be at least 1'); return; }
 
   try {
     const res = await fetch(API_URL + '/api/booking', {
       method: 'POST',
-      headers: { 'Content-Type':'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify({
         inquiry_id: currentInqId || null,
         project_id: currentProjectId || null,
@@ -2202,6 +2325,7 @@ async function addBookingItem(){
       })
     });
     const result = await res.json();
+    if(!res.ok){ alert(result.error || 'Failed to add item'); return; }
     if(result.warnings && result.warnings.length){
       alert('⚠️ Warning: ' + result.warnings.map(w =>
         `${w.item}: Need ${w.needed}, only ${w.available} available!`
@@ -2213,14 +2337,15 @@ async function addBookingItem(){
     // Reload bookings
     if(currentProjectId) loadProjectBookings(currentProjectId);
     else loadPanelBookings(currentInqId);
-  } catch(e) { console.log('Add booking failed', e); }
+    loadInventory().then(populateInventorySelect);
+  } catch(e) { alert('Failed to add item. Check your connection.'); }
 }
 
 function populateInventorySelect(){
   const select = document.getElementById('bk-item-select');
   if(!select || !allInventory.length) return;
   select.innerHTML = '<option value="">Select inventory item...</option>' +
-    allInventory.map(i => `<option value="${i.id}">${i.name} (${i.available} available)</option>`).join('');
+    allInventory.map(i => `<option value="${esc(i.id)}">${esc(i.name)} (${i.available} available)</option>`).join('');
 }
 
 // ===== AUTO SAVE =====
@@ -2231,13 +2356,16 @@ async function autoSave(){
   try {
     const res = await fetch(API_URL + '/api/data', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: authHeaders(true),
       body: JSON.stringify(D)
     });
     const result = await res.json();
     if(result.success){
       m.textContent = '✓ Saved!';
       setTimeout(()=>m.style.display='none', 2000);
+    } else {
+      m.textContent = '✗ Not saved: ' + (result.error || 'error');
+      setTimeout(()=>m.style.display='none', 4000);
     }
   } catch(e){
     m.textContent = '✗ Error';

@@ -280,8 +280,8 @@ async function loadPage(){
     const data = await res.json();
 
     const item = type === 'package'
-      ? data.packages.find(p => p.id === serviceId)
-      : data.services.find(s => s.id === serviceId);
+      ? (data.packages || []).find(p => p.id === serviceId)
+      : (data.services || []).find(s => s.id === serviceId);
 
     if(!item){ document.getElementById('loading').textContent = 'Not found'; return; }
 
@@ -349,7 +349,9 @@ function lbPrev(e){ e.stopPropagation(); lbIndex = (lbIndex - 1 + galleryPhotos.
 function lbNext(e){ e.stopPropagation(); lbIndex = (lbIndex + 1) % galleryPhotos.length; document.getElementById('lb-img').src = galleryPhotos[lbIndex]; }
 
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') document.getElementById('lightbox').classList.remove('open');
+  const lb = document.getElementById('lightbox');
+  if(!lb.classList.contains('open') || !galleryPhotos.length) return; // arrows only page the open lightbox
+  if(e.key === 'Escape') lb.classList.remove('open');
   if(e.key === 'ArrowLeft') lbPrev({stopPropagation:()=>{}});
   if(e.key === 'ArrowRight') lbNext({stopPropagation:()=>{}});
 });

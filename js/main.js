@@ -7,6 +7,7 @@ const API_URL = 'https://mehroj-production.up.railway.app';
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const res = await fetch(API_URL + '/api/data');
+    if(!res.ok) throw new Error('API error ' + res.status);
     const data = await res.json();
     Object.assign(SITE_DATA, data);
   } catch(e) {
@@ -83,7 +84,7 @@ function renderPackages() {
         <h3 class="pkg-name">${p.name}</h3>
         <div class="pkg-price">${p.price}</div>
         <ul class="pkg-includes">
-          ${p.includes.map(item => `<li>${item}</li>`).join('')}
+          ${(p.includes || []).map(item => `<li>${item}</li>`).join('')}
         </ul>
         ${p.note ? `<p class="pkg-note">${p.note}</p>` : ''}
       </div>
@@ -134,11 +135,7 @@ function toggleFAQ(btn) {
 }
 
 // ---- FORM ----
-function submitForm(e) {
-  e.preventDefault();
-  document.getElementById('contact-form').style.display = 'none';
-  document.getElementById('form-success').style.display = 'block';
-}
+// submitForm() lives in js/inquiry-form.js (sends the inquiry to the API)
 
 // ---- NAV ----
 function initNav() {
