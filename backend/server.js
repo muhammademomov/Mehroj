@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
+const { createPool, migrateFromMySQL } = require('./mysql-sqlite');  // база-файл вместо отдельного MySQL
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,21 +15,10 @@ async function connectDB() {
   try {
     // Connection POOL: survives idle disconnects (Railway/MySQL kill idle connections),
     // reconnects automatically - fixes the "works after restart, dies later" problem
-    db = mysql.createPool({
-      host: process.env.MYSQLHOST,
-      user: process.env.MYSQLUSER,
-      password: process.env.MYSQLPASSWORD,
-      database: process.env.MYSQLDATABASE,
-      port: process.env.MYSQLPORT || 3306,
-      waitForConnections: true,
-      connectionLimit: 10,
-      maxIdle: 5,
-      idleTimeout: 60000,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
-    });
+    // База — один файл на томе Railway (/data). Раньше был отдельный MySQL (~$4/мес только за то, что он включён).
+    db = createPool(process.env.DB_FILE || '/data/glowup.db');
     await db.execute('SELECT 1');
-    console.log('MySQL connected!');
+    console.log('Database ready (SQLite file)');
 
     // Create tables
     await db.execute(`
@@ -176,6 +165,13 @@ async function connectDB() {
       )
     `);
 
+    // Один раз: перенести данные из старого MySQL (пока заданы MYSQLHOST и др.)
+    if (process.env.MYSQLHOST) {
+      await migrateFromMySQL(db, {
+        host: process.env.MYSQLHOST, user: process.env.MYSQLUSER, password: process.env.MYSQLPASSWORD,
+        database: process.env.MYSQLDATABASE, port: process.env.MYSQLPORT || 3306,
+      });  // ошибка переноса — сервер не стартует: лучше упасть, чем показать пустую админку
+    }
     console.log('Tables ready!');
   } catch(e) {
     console.error('DB Error:', e.message);
